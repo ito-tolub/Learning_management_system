@@ -2,9 +2,9 @@ import mongoose from 'mongoose'
 
 const userSchema = new mongoose.Schema(
     {
-        _id:{type: String, required: true},
+        clerkId:{type: String, required: true, unique: true, index: true},
         name: {type: String, required: true},
-        email: {type: String, required: true},
+        email: {type: String, required: true, unique: true},
         imageUrl: {type: String, required: true},
         enrolledCourses: [
             {
@@ -15,5 +15,4 @@ const userSchema = new mongoose.Schema(
     }, {timestamps: true});
 
     const User = mongoose.model('User', userSchema);
-
     export default User
