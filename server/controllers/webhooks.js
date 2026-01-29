@@ -19,8 +19,8 @@ export const clerkWebhooks = async (req, res) => {
                 const userData = {
                     _id: data.id,
                     email: data.email_addresses[0].email_address, 
-                    name: data.first_name + "" + data.last_name,
-                    imageUrl: data.imageUrl,
+                    name: data.first_name + " " + data.last_name,
+                    imageUrl: data.image_Url,
                 }
                 await User.create(userData)
                 res.json({})
@@ -30,8 +30,8 @@ export const clerkWebhooks = async (req, res) => {
                 const userData = {
                     _id: data.id,
                     email: data.email_address[0].email_address, 
-                    name: data.first_name + "" + data.last_name,
-                    imageUrl: data.imageUrl,
+                    name: data.first_name + " " + data.last_name,
+                    imageUrl: data.image_Url,
                 }
                 await User.findByIdAndUpdate(data.id, userData)
                 res.json({})
