@@ -91,7 +91,7 @@ export const userEnrolledCourses = async (req, res) => {
           success_url: `${origin}/my-enrollments`,
           cancel_url: `${origin}/`,
           metadata: {
-              purchasedId: newPurchase._id.toString()
+              purchaseId: newPurchase._id.toString()
           }
       });
 
