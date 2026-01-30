@@ -53,7 +53,7 @@ export const userEnrolledCourses = async (req, res) => {
             return res.json({ success: false, message: "Course not found" });
         }
 
-        const userData = await User.findOne({ userId });
+        const userData = await User.findOne({ clerkId: userId });
 
         if (!userData) {
             return res.json({ success: false, message: "User not found" });
