@@ -68,7 +68,7 @@ export const stripeWebhooks = async (request, response) => {
   let event;
 
   try {
-    event = Stripe.webhooks.constructEvent(request.body, sig, process.env.STRIPE_WEBHOOKS_SECRET);
+    event = Stripe.webhooks.constructEvent(request.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   }
   catch (err) {
     response.status(400).send(`Webhook Error: ${err.message}`);
@@ -76,7 +76,7 @@ export const stripeWebhooks = async (request, response) => {
 
   // Handle the event
   switch (event.type) {
-    case 'payment_intent.completed': {
+    case 'payment_intent.succeeded': {
       const paymentIntent = event.data.object;
       const paymentIntentId = paymentIntent.id;
 
