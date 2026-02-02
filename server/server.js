@@ -18,7 +18,7 @@ await connectCloudinary()
 app.use(cors())
 
 // 🔥 STRIPE WEBHOOK HARUS PALING ATAS & TANPA MIDDLEWARE LAIN
-app.use(
+app.post(
     '/stripe',
     express.raw({ type: 'application/json' }),
     stripeWebhooks
