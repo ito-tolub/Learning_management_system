@@ -50,9 +50,13 @@ export const purchaseCourse = async (req, res) => {
       return res.json({ success: false, message: 'Data Not Found' })
     }
 
+    const finalAmount =
+  courseData.coursePrice -
+  (courseData.discount * courseData.coursePrice) / 100;
+
     const purchaseData = {
       courseId: courseData._id, userId,
-      amount: (courseData.coursePrice - courseData.discount * courseData.coursePrice / 100).toFixed(2),
+      amount: Number(finalAmount.toFixed(2)),
     }
 
     const newPurchase = await Purchase.create(purchaseData);
