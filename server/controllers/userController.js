@@ -63,7 +63,10 @@ export const userEnrolledCourses = async (req, res) => {
         const purchaseData = {
             courseId: courseData._id, // Menggunakan courseData._id yang benar
             userId: userData._id, // Pastikan userId benar
-            amount: (courseData.coursePrice - (courseData.discount * courseData.coursePrice / 100)).toFixed(2),
+            amount: Number(
+              (courseData.coursePrice -
+              (courseData.discount * courseData.coursePrice / 100)).toFixed(2)
+            )
         };
 
         // Menyimpan data pembelian ke database

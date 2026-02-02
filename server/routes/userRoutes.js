@@ -5,6 +5,8 @@ const userRouter = express.Router()
 
 userRouter.get('/data', getUserData)
 userRouter.get('/enrolled-courses', userEnrolledCourses)
+// userRouter.post('/enroll-course', enrollCourse)
 userRouter.post('/purchase', purchaseCourse)
+// userRouter.post('/checkout', createCheckoutSession)
 
 export default userRouter;

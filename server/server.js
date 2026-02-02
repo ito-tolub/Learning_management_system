@@ -9,28 +9,36 @@ import connectCloudinary from './configs/cloudinary.js'
 import courseRouter from './routes/courseRoute.js'
 import userRouter from './routes/userRoutes.js'
 
-//Initialize Express
-const app = express();
+const app = express()
 
-//Connect to Database
-connectDB();
+// Connect DB
+connectDB()
 await connectCloudinary()
 
-//Middlewares
-app.use(cors());
+app.use(cors())
+
+// 🔥 STRIPE WEBHOOK HARUS PALING ATAS & TANPA MIDDLEWARE LAIN
+app.use(
+    '/stripe',
+    express.raw({ type: 'application/json' }),
+    stripeWebhooks
+  );
+
+// Clerk webhook
+app.post('/clerk', express.json(), clerkWebhooks)
+
+// Middleware auth SETELAH webhook
 app.use(clerkMiddleware())
 
-//Routes
-app.get('/', (req, res) => res.send("API Working"))
-app.post('/clerk', express.json(), clerkWebhooks)
+// Normal API routes
 app.use('/api/educator', express.json(), educatorRouter)
 app.use('/api/course', express.json(), courseRouter)
 app.use('/api/user', express.json(), userRouter)
-app.use('/stripe', express.raw({type: 'application/json'}), stripeWebhooks)
 
-//Port
+// Test route
+app.get('/', (req, res) => res.send('API Working'))
+
 const PORT = process.env.PORT || 5000
-
-app.listen(PORT, ()=>{
-    console.log(`Server is running on port ${PORT}`)
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
 })
