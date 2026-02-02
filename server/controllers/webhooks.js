@@ -78,31 +78,26 @@ export const stripeWebhooks = async (request, response) => {
   switch (event.type) {
     case 'payment_intent.completed': {
       const paymentIntent = event.data.object;
-      // const paymentIntentId = paymentIntent.id;
+      const paymentIntentId = paymentIntent.id;
 
-      const session = event.data.object;
-    const purchaseId = session.metadata.purchaseId;
-
-    const purchase = await Purchase.findById(purchaseId);
-    if (!purchase) return;
-
-    purchase.status = 'completed';
-    await purchase.save();
-
-    // enroll user
-    const user = await User.findById(purchase.userId);
-    const course = await Course.findById(purchase.courseId);
-
-    if (!user.enrolledCourses.includes(course._id)) {
-      user.enrolledCourses.push(course._id);
-      await user.save();
-    }
-
-    if (!course.enrolledStudents.includes(user._id)) {
-      course.enrolledStudents.push(user._id);
-      await course.save();
-    }
-
+      const session = await stripeInstance.checkout. sessions.list({
+        payment_intent: paymentIntentId
+        })
+        
+        const { purchaseId } = session.data[0].metadata;
+        
+        const purchaseData = await Purchase.findById(purchaseId)
+        const userData = await User.findById(purchaseData.userId)
+        const courseData = await Course.findById(purchaseData.courseId.toString())
+        
+        courseData.enrolledStudents.push(userData)
+        await courseData.save()
+        
+        userData.enrolledCourses.push(courseData._id)
+        await userData.save()
+        
+        purchaseData.status = 'completed'
+        await purchaseData.save()
       break;
     }
 
@@ -127,6 +122,6 @@ export const stripeWebhooks = async (request, response) => {
   }
 
   // Return a response to acknowledge receipt of the event
-  response.json({ received: true });
+  response.json({received: true});
 
 }
