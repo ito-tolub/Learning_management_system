@@ -25,28 +25,21 @@ export const updateRoleToEducator = async (req, res) => {
 export const addCourse = async (req, res) => {
     try {
         const { courseData } = req.body;
-        const { userId: clerkId } = req.auth();
+        const educatorId = req.auth.userId;
         const imageFile = req.file;
 
         if (!imageFile) {
             return res.json({ success: false, message: "thumbnail not attached" });
         }
 
-        const educator = await User.findOne({ clerkId });
-        if (!educator) {
-            return res.json({ success: false, message: "Educator not found" });
-        }
+        const parsedCourseData = await JSON.parse(courseData)
+        parsedCourseData.educator = educatorId
+        const newCourse = await Course.create(parsedCourseData)
+        const imageUpload = await cloudinary.uploader.upload(imageFile.path)
+        newCourse.courseThumbnail = imageUpload.secure_url
+        await newCourse.save()
 
-        const parsedCourseData = JSON.parse(courseData);
-
-        const imageUpload = await cloudinary.uploader.upload(imageFile.path);
-
-        parsedCourseData.courseThumbnail = imageUpload.secure_url;
-        parsedCourseData.educator = educator._id; // ✅ FIX UTAMA
-
-        await Course.create(parsedCourseData);
-
-        res.json({ success: true, message: "Course created successfully" });
+        res.json({ success: true, message: 'Course Added' })
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
@@ -55,22 +48,9 @@ export const addCourse = async (req, res) => {
 //Get Educator Courses
 export const getEducatorCourses = async (req, res) => {
     try {
-        // 1️⃣ Ambil clerkId
-        const { userId: clerkId } = req.auth();
-
-        // 2️⃣ Cari user MongoDB
-        const educator = await User.findOne({ clerkId });
-
-        if (!educator) {
-            return res.json({
-                success: false,
-                message: "Educator not found",
-            });
-        }
-
-        // 3️⃣ Query Course pakai ObjectId
-        const courses = await Course.find({ educator: educator._id });
-
+        
+        const educator = req.auth.userId
+        const courses = await Course.find({educator});
         res.json({ success: true, courses });
     } catch (error) {
         res.json({ success: false, message: error.message });
@@ -80,8 +60,8 @@ export const getEducatorCourses = async (req, res) => {
 //get Educator Dashboard Data
 export const educatorDashboardData = async (req, res) => {
     try {
-        const educator = await User.findOne({ clerkId });
-        const courses = await Course.find({ educator: educator._id });
+        const educator = req.auth.userId;
+        const courses = await Course.find({educator});
         const totalCourses = courses.length;
 
         const courseIds = courses.map(course => course._id);
@@ -100,9 +80,9 @@ export const educatorDashboardData = async (req, res) => {
                 _id: { $in: course.enrolledStudents }
             }, 'name imageUrl');
 
-            students.forEach(students => {
+            students.forEach(student => {
                 enrolledStudentsData.push({
-                    courseTitle: course.courseTitle, students
+                    courseTitle: course.courseTitle, student
                 });
             });
         }
@@ -120,8 +100,8 @@ export const educatorDashboardData = async (req, res) => {
 //get enrolled students data with purchase data
 export const getEnrolledStudentsData = async (req, res) => {
     try {
-        const educator = await User.findOne({ clerkId });
-        const courses = await Course.find({ educator: educator._id });
+        const educator = req.auth.userId;
+        const courses = await Course.find({educator});
         const courseIds = courses.map(course => course._id);
 
         const purchases = await Purchase.find({
@@ -134,8 +114,8 @@ export const getEnrolledStudentsData = async (req, res) => {
             purchaseDate: purchase.createdAt
         }))
 
-        res.json({success: true, enrolledStudents})
+        res.json({ success: true, enrolledStudents })
     } catch (error) {
-        res.json({success: false, message: error.message})
+        res.json({ success: false, message: error.message })
     }
 }
