@@ -74,12 +74,12 @@ const MyEnrollment = () => {
                 </td>
                 <td className='px-4 py-3 max-sm:text-right'>
                   <button onClick={() => navigate('/Player/' + course._id)} className={`px-3 sm:px-5 py-1.5 sm:py-2 max-sm:text-xs text-white cursor-pointer ${progressArray[index] &&
-                      progressArray[index].lectureCompleted / progressArray[index].totalLecture === 1
+                      progressArray[index].lectureCompleted / progressArray[index].totalLectures === 1
                       ? 'bg-green-600'
                       : 'bg-blue-600'
                     }`}>
                     {progressArray[index] &&
-                      progressArray[index].lectureCompleted / progressArray[index].totalLecture === 1
+                      progressArray[index].lectureCompleted / progressArray[index].totalLectures === 1
                       ? 'Completed'
                       : 'On Going'}
                   </button>

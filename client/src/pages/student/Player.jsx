@@ -77,13 +77,13 @@ const Player = () => {
     }
 
     const handleRate = async (rating) => {
-
+      
       try {
         const token = await getToken()
-        const {data} = await axios.post(backendUrl + '/api/user/add-rating', {courseId: courseId.trim(), rating}, {headers:{Authorization: `Bearer ${token}`}})
+        const {data} = await axios.post(backendUrl + '/api/user/add-rating', {courseId, rating}, {headers:{Authorization: `Bearer ${token}`}})
         
         if (data.success) {
-          toast.success(data.message)
+          toast.success(data.message, { className: 'bg-green-600 text-white' })
           fetUserEnrolledCourses()
         }else{
           toast.error(data.message)
@@ -120,7 +120,7 @@ const Player = () => {
                     <ul className='list-disc md:pl-10 pl-4 pr-4 py-2 text-gray-600 border-t border-gray-300'>
                       {chapter.chapterContent?.map((lecture, i) => (
                         <li key={i} className='flex items-start gap-3'>
-                          <img src={progressData && progressData.lectureCompleted.includes(playerData.lectureId) ? assets.blue_tick_icon : assets.play_icon} alt="play icon" className="w-4 h-4 mt-1" />
+                          <img src={progressData && progressData.lectureCompleted.includes(lecture.lectureId) ? assets.blue_tick_icon : assets.play_icon} alt="play icon" className="w-4 h-4 mt-1" />
                           <div className='flex items-center justify-between w-full text-gray-800 text-xs md:text-default'>
                             <p>{lecture.lectureTitle}</p>
                             <div className='flex gap-2'>
