@@ -12,7 +12,7 @@ const CourseCard = ({course}) => {
     <img className='w-full' src={course.courseThumbnail} alt="" />
       <div className='p-3 text-left'>
         <h3 className='text-base font-semibold'>{course.courseTitle}</h3>
-        <p className='text-grey-500'>Muhammad Tosan</p>
+        <p className='text-grey-500'>{course?.educator?.name}</p>
         <div className='flex items-center space-x-2'>
           <p>{calculateRating(course)}</p>
           <div className='flex'>
@@ -24,8 +24,11 @@ const CourseCard = ({course}) => {
         </div>
         <p className='text-base font-semibold text-grey-500'>{currency}{(course.coursePrice - course.discount * course.coursePrice / 100).toFixed(2)}</p>
       </div>
+      {/* {console.log("educator:", course.educator, "course:", course.courseTitle)} */}
     </Link>
   )
+  
 }
+
 
 export default CourseCard

@@ -5,9 +5,9 @@ const Rating = ({ initialRating = 0, onRate }) => {
 
   const handleRating = (value) => {
     setRating(value)
-    if (onRate) onRate(value)
+    if (onRate){ onRate(value)
   }
-
+  }
   useEffect(() => {
     setRating(initialRating)
   }, [initialRating])

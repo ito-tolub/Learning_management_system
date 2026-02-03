@@ -8,6 +8,8 @@ import Course from "../models/Course.js";
 //API controller Function
 export const clerkWebhooks = async (req, res) => {
   try {
+    console.log("Received webhook request body:", req.body);
+    
     const whook = new Webhook(process.env.CLERK_WEBHOOK_SECRET);
 
     const evt = whook.verify(JSON.stringify(req.body), {
@@ -16,6 +18,7 @@ export const clerkWebhooks = async (req, res) => {
       "svix-signature": req.headers["svix-signature"],
     });
 
+    console.log("Received event:", evt);
     const { data, type } = evt;
 
     switch (type) {
@@ -26,6 +29,7 @@ export const clerkWebhooks = async (req, res) => {
           name: data.first_name + " " + data.last_name,
           imageUrl: data.image_url,
         }
+        console.log("User data to be saved:", userData);
         await User.create(userData)
         res.json({})
         break;

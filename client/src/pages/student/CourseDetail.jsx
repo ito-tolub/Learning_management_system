@@ -1,12 +1,13 @@
 import React, { useContext, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AppContext } from '../../context/AppContext'
-import Loading from '../../components/student/Loading'
+import Loading from '../../components/student/Loading.jsx'
 import { assets } from '../../assets/assets'
 import humanizeDuration from 'humanize-duration'
 import Footer from '../../components/student/Footer'
 import YouTube from 'react-youtube'
 import axios from 'axios';
+import { toast } from 'react-toastify'
 
 const CourseDetail = () => {
 
@@ -16,11 +17,23 @@ const CourseDetail = () => {
   const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(true)
   const [playerData, setPlayerData] = useState(null)
 
-  const { allCourses, calculateRating, calculateChapterTime, calculateCourseDuration, calculateNoofLectures, currency } = useContext(AppContext)
+  const { allCourses, calculateRating, calculateChapterTime, calculateCourseDuration, calculateNoofLectures, currency, backendUrl, userData, getToken } = useContext(AppContext)
+  
 
   const fetchCourseData = async () => {
-    const findCourse = allCourses.find(course => course._id === id)
-    setCourseData(findCourse);
+    // const findCourse = allCourses.find(course => course._id === id)
+    // setCourseData(findCourse);
+    try {
+      const { data } = await axios.get(backendUrl + '/api/course/' + id)
+
+      if (data.success) {
+        setCourseData(data.courseData)
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    }
   }
 
   const checkEnrollment = async () => {
@@ -54,10 +67,40 @@ const CourseDetail = () => {
     }
   }
 
+  const enrollCourse = async () => {
+    try {
+      if (!userData) {
+        return toast.warn('login to enroll in this course')
+
+      }
+      if (isAlreadyEnrolled) {
+        return toast.warn('you are already enrolled in this course')
+      }
+      const token = await getToken();
+      const { data } = await axios.post(backendUrl + '/api/user/purchase', { courseId: courseData._id }, { headers: { Authorization: `Bearer ${token}` } })
+
+      if (data.success) {
+        const { session_url } = data
+        window.location.href = session_url
+      } else {
+        toast.error(data.message)
+      }
+
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
   useEffect(() => {
     fetchCourseData()
     checkEnrollment()
-  }, [allCourses])
+  }, [])
+
+  useEffect(() => {
+    if (userData && courseData) {
+      setIsAlreadyEnrolled(userData.enrolledCourses.includes(courseData._id))
+    }
+  }, [userData, courseData])
 
   const toggleSection = (index) => {
     setOpenSection((prev) => (
@@ -88,7 +131,7 @@ const CourseDetail = () => {
             <p>{courseData.enrolledStudents.length} {courseData.enrolledStudents.length > 1 ? 'students' : 'students'}</p>
           </div>
 
-          <p>Course by <span className='text-blue-600 underline'>Muhammad Tosan</span></p>
+          <p>Course by <span className='text-blue-600 underline'>{courseData.educator.name}</span></p>
 
           <div className='pt-8 text-gray-800'>
             <h2 className='text-xl font-semibold'>Course Structure</h2>
@@ -173,7 +216,7 @@ rounded-xl overflow-hidden bg-white w-full md:w-[400px] lg:w-[420px]'>
               </div>
             </div>
             <button
-              onClick={!isAlreadyEnrolled ? handleEnroll : undefined}
+              onClick={enrollCourse}
               disabled={isAlreadyEnrolled}
               className={`md:mt-6 mt-4 w-full py-3 rounded font-medium
     ${isAlreadyEnrolled

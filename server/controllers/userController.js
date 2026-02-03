@@ -145,7 +145,7 @@ export const addUserRating = async (req,res) => {
     return res.json({success: false, message: 'invalid details'})
   }
   try {
-    const course = await Course.findById(courseId)
+    const course = await Course.findById(req.body.courseId)
     if (!course) {
       return res.json({ success: false, message: 'course not found'})
     }
