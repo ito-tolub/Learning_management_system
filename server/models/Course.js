@@ -36,6 +36,7 @@ const courseSchema = new mongoose.Schema({
   enrolledStudents: [
     { type: String, ref: 'User' }
   ],
+  tags: { type: String, enum: ['V', 'A', 'R', 'K'], default: 'V' },
 }, { timestamps: true, minimize: false })
 
 

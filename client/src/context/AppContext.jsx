@@ -49,10 +49,22 @@ export const AppContextProvider = (props) => {
             const { data } = await axios.get(backendUrl + '/api/user/data', { headers: { Authorization: `Bearer ${token}` } })
 
             if (data.success) {
+                setUserData(data.user)
+
+                const isVarkPage = window.location.pathname === '/vark-quiz'
+                const isNppPage = window.location.pathname === '/npp-input'
+
+                // Cek data keprajaan dulu
+                const belumAdaNpp = !data.user?.npp
+                if (belumAdaNpp && !isNppPage && !isVarkPage) {
+                    navigate('/npp-input')
+                    return
+                }
+
+                // Cek VARK
                 const vark = data.user?.varkResult
                 const belumIsi = !vark || !vark.dominant || vark.dominant === ''
-                const isVarkPage = window.location.pathname === '/vark-quiz'
-                if (belumIsi && !isVarkPage) {
+                if (belumIsi && !isVarkPage && !isNppPage) {
                     navigate('/vark-quiz')
                 }
             } else {

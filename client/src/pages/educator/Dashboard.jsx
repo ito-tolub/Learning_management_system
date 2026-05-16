@@ -10,20 +10,27 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null)
   const {currency, backendUrl, isEducator, getToken} = useContext(AppContext)
   
-  const fetchDashboardData = async () => {
-    try {
-      const token = await getToken()
-      const {data} = await axios.get(backendUrl+'/api/educator/dashboard', {headers: {Authorization:`Bearer ${token}`}})
+const fetchDashboardData = async () => {
+  try {
+    // Cek apakah login sebagai dosen (JWT) atau praja (Clerk)
+    const dosenToken = localStorage.getItem('dosenToken')
+    console.log('dosenToken:', dosenToken?.slice(0, 30))
+    const token = dosenToken || await getToken()
+    console.log('token yang dipakai:', token?.slice(0, 30))
 
-      if (data.success) {
-        setDashboardData(data.dashboardData)
-      }else{
-        toast.error(data.message)
-      }
-    } catch (error) {
-      toast.error(error.message)
+    const {data} = await axios.get(backendUrl+'/api/educator/dashboard', {
+      headers: {Authorization:`Bearer ${token}`}
+    })
+
+    if (data.success) {
+      setDashboardData(data.dashboardData) // ← ambil data.dashboardData, bukan data
+    } else {
+      toast.error(data.message)
     }
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Failed to load dashboard data')
   }
+}
 
   useEffect(() => {
     console.log('Dashboard mounted', dummyDashboardData)
