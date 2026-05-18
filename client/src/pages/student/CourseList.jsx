@@ -98,7 +98,7 @@ const CourseList = () => {
           <SearchBar data={input} />
         </div>
 
-        {/* Banner VARK + Durasi */}
+        {/* Banner VARK + Durasi
         {dominant && info && (
           <div className={`mt-6 border rounded-xl px-5 py-4 ${info.color}`}>
             <div className='flex items-center justify-between'>
@@ -119,7 +119,7 @@ const CourseList = () => {
               </button>
             </div>
           </div>
-        )}
+        )} */}
 
         {input && (
           <div className='inline-flex items-center gap-4 px-4 py-2 border mt-8 mb-8 text-gray-600'>

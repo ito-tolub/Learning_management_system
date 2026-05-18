@@ -142,7 +142,7 @@ const CourseDetail = () => {
           {/* <p>Course by <span className='text-blue-600 underline'>{courseData.educator.name}</span></p> */}
 
           <div className="pt-8 text-gray-800 w-full max-w-3xl">
-            <h2 className="text-xl font-semibold">Course Structure</h2>
+            <h2 className="text-xl font-semibold">Struktur Mata Kuliah</h2>
 
             <div className="pt-5">
               {courseData.courseContent.map((chapter, index) => (
@@ -150,7 +150,10 @@ const CourseDetail = () => {
                   key={index}
                   className="border border-gray-300 bg-white mb-2 rounded w-full"
                 >
-                  <div className='flex items-center justify-between px-4 py-4 cursor-pointer select-none gap-4' onClick={() => toggleSection(index)}>
+                  <div
+                    className="flex items-center justify-between px-4 py-4 cursor-pointer select-none gap-4"
+                    onClick={() => toggleSection(index)}
+                  >
                     <div className="flex items-center gap-2">
                       <img
                         src={assets.down_arrow_icon}
@@ -161,7 +164,10 @@ const CourseDetail = () => {
                         {chapter.chapterTitle}
                       </p>
                     </div>
-                    <p className='text-sm md:text-default whitespace-nowrap ml-4'>{chapter.chapterContent.length} lectures - {calculateChapterTime(chapter)}</p>
+                    <p className="text-sm md:text-default whitespace-nowrap ml-4">
+                      {chapter.chapterContent.length} objek pembelajaran -{" "}
+                      {calculateChapterTime(chapter)}
+                    </p>
                   </div>
 
                   <div
@@ -195,7 +201,9 @@ const CourseDetail = () => {
                               <p>
                                 {humanizeDuration(
                                   lecture.lectureDuration * 60 * 1000,
-                                  { units: ["h", "m"] },
+                                  {
+                                    units: ["h", "m"],
+                                  },
                                 )}
                               </p>
                             </div>
@@ -211,7 +219,7 @@ const CourseDetail = () => {
 
           <div className="py-20 text-sm md:text-default">
             <h3 className="text-xl font-semibold text-gray-800">
-              Course Description
+              Deskripsi Singkat Mata Kuliah
             </h3>
             <p
               className="pt-3 rich-text"
@@ -267,7 +275,7 @@ rounded-xl overflow-hidden bg-white w-full md:w-[400px] lg:w-[420px]"
 
               <div className="flex items-center gap-1">
                 <img src={assets.lesson_icon} alt="clock icon" className="" />
-                <p>{calculateNoofLectures(courseData)} lessons</p>
+                <p>{calculateNoofLectures(courseData)} objek pembelajaran</p>
               </div>
             </div>
             <button
@@ -302,7 +310,7 @@ rounded-xl overflow-hidden bg-white w-full md:w-[400px] lg:w-[420px]"
                 </li>
                 <li>
                   Materi tersedia dalam berbagai format: video, audio, teks, dan
-                  praktik
+                  quizz
                 </li>
                 <li>Progress pembelajaran tercatat otomatis di setiap sesi</li>
               </ul>
