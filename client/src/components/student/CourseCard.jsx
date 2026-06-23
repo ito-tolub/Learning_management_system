@@ -5,9 +5,18 @@ import { AppContext } from '../../context/AppContext'
 const CourseCard = ({ course, isRecommended = false, badgeEmoji = '' }) => {
   const { calculateRating } = useContext(AppContext)
 
+  // Nama dosen: pengajarNama (dari pegawai) → fallback
+  const pengajar = course?.pengajarNama || 'Dosen Pengajar'
+
+  // Jadwal manual dari database
+  const sch = course?.schedule
+  const jadwal = sch?.day
+    ? `${sch.day}${sch.startTime ? `, ${sch.startTime}` : ''}${sch.endTime ? ` – ${sch.endTime}` : ''}`
+    : null
+
   return (
-    <Link 
-      to={`/course/${course._id}`} 
+    <Link
+      to={`/course/${course._id}`}
       onClick={() => window.scrollTo(0, 0)}
       className="border border-gray-500/30 pb-6 overflow-hidden rounded-lg relative group hover:shadow-lg transition-shadow"
     >
@@ -18,21 +27,27 @@ const CourseCard = ({ course, isRecommended = false, badgeEmoji = '' }) => {
         </div>
       )}
 
-      <img 
-        className="w-full aspect-video object-cover" 
-        src={course.courseThumbnail} 
-        alt={course.courseTitle} 
+      <img
+        className="w-full aspect-video object-cover"
+        src={course.courseThumbnail}
+        alt={course.courseTitle}
       />
-      
+
       <div className="p-3 text-left">
         <h3 className="text-base font-semibold line-clamp-2">{course.courseTitle}</h3>
-        <p className="text-gray-500 text-sm mt-1">{course?.educator?.name}</p>
-        
-        {/* Rating (kalau mau dihidupkan lagi) */}
-        {/* <div className='flex items-center space-x-2 mt-2'>
-          <p>{calculateRating(course)}</p>
-          ... stars ...
-        </div> */}
+        <p className="text-gray-500 text-sm mt-1">{pengajar}</p>
+
+        {/* Jadwal */}
+        {jadwal && (
+          <div className="flex items-center gap-1.5 text-gray-600 text-xs mt-2">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 shrink-0">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <path d="M16 2v4M8 2v4M3 10h18" />
+            </svg>
+            <span>{jadwal}</span>
+          </div>
+        )}
       </div>
     </Link>
   )

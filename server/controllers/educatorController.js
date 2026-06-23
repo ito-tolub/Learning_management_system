@@ -6,7 +6,7 @@ import { Purchase } from "../models/Purchase.js";
 import { CourseProgress } from "../models/CourseProgress.js";
 import { LectureActivity } from "../models/LectureActivity.js";
 import jwt from "jsonwebtoken";
-import Pegawai from "../models/Pegawai.js";
+import Pegawai from "../models/pegawai.js";
 import Keprajaan from "../models/Keprajaan.js";
 
 export const verifyNipAndBecomeEducator = async (req, res) => {

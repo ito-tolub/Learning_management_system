@@ -5,7 +5,7 @@ export const getAllCourses = async (req, res) => {
     try {
         const courses = await Course.find({
             isPublished: true
-        }).select(['-courseContent','-enrolledStudents']).populate({path:'educator'})
+        }).select(['-courseContent','-enrolledStudents']).populate({path: 'pengajar', select: 'nama bagian'})
 
         res.json({success: true, courses})
     } catch (error) {
@@ -17,7 +17,7 @@ export const getAllCourses = async (req, res) => {
  export const getCourseId = async (req,res) => {
     const {id} = req.params
     try {
-        const courseData = await Course.findById(id).populate({path:'educator'})
+        const courseData = await Course.findById(id).populate({path: 'pengajar', select: 'nama bagian'})
 
         //Remove Lecture Url
         courseData.courseContent.forEach(chapter => {

@@ -15,34 +15,6 @@ const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate()
 const dowOf = (y, m, d) => { const w = new Date(y, m, d).getDay(); return w === 0 ? 6 : w - 1 }
 
 /* ============================================================
-   Struktur semester (sesuaikan tanggal mulainya)
-   8 minggu kuliah (termasuk UTS) → libur ~1 bulan → 7 minggu (termasuk UAS)
-   ============================================================ */
-const SEMESTER_START = new Date(2026, 5, 22)  // Senin, 22 Juni 2026 — minggu ke-1
-const WEEKS_BEFORE_BREAK = 8                  // 8 minggu pertama (termasuk UTS)
-const BREAK_WEEKS = 4                         // libur ~1 bulan
-const WEEKS_AFTER_BREAK = 7                   // 7 pertemuan terakhir (termasuk UAS)
-
-const MS_DAY = 86400000
-const midnight = (y, m, d) => new Date(y, m, d).getTime()
-const weekIndexFromStart = (y, m, d) => {
-  const diff = Math.floor(
-    (midnight(y, m, d) - midnight(SEMESTER_START.getFullYear(), SEMESTER_START.getMonth(), SEMESTER_START.getDate())) / MS_DAY
-  )
-  return diff < 0 ? -1 : Math.floor(diff / 7)
-}
-const isTeachingDate = (y, m, d) => {
-  const w = weekIndexFromStart(y, m, d)
-  if (w < 0) return false
-  const secondStart = WEEKS_BEFORE_BREAK + BREAK_WEEKS
-  return w < WEEKS_BEFORE_BREAK || (w >= secondStart && w < secondStart + WEEKS_AFTER_BREAK)
-}
-const isBreakDate = (y, m, d) => {
-  const w = weekIndexFromStart(y, m, d)
-  return w >= WEEKS_BEFORE_BREAK && w < WEEKS_BEFORE_BREAK + BREAK_WEEKS
-}
-
-/* ============================================================
    Ikon inline (proyek tidak memakai library ikon)
    ============================================================ */
 const I = {
@@ -60,28 +32,10 @@ const I = {
 /* ============================================================
    Kalender — berfungsi penuh (navigasi bulan, hari ini, pilih tgl)
    ============================================================ */
-const CalendarCard = ({ enrolledCourses = [] }) => {
+const CalendarCard = () => {
   const today = useMemo(() => new Date(), [])
   const [cur, setCur] = useState({ y: today.getFullYear(), m: today.getMonth() })
   const [sel, setSel] = useState({ y: today.getFullYear(), m: today.getMonth(), d: today.getDate() })
-
-  // Peta: nama hari → daftar kelas pada hari itu
-  const jadwalPerHari = useMemo(() => {
-    const map = {}
-    ;(enrolledCourses || []).forEach((c) => {
-      const day = c?.schedule?.day
-      if (!day) return
-      ;(map[day] ||= []).push({
-        title: c.courseTitle,
-        startTime: c?.schedule?.startTime,
-        endTime: c?.schedule?.endTime,
-      })
-    })
-    Object.values(map).forEach((list) =>
-      list.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
-    )
-    return map
-  }, [enrolledCourses])
 
   const prev = () => setCur(c => c.m === 0 ? { y: c.y - 1, m: 11 } : { ...c, m: c.m - 1 })
   const next = () => setCur(c => c.m === 11 ? { y: c.y + 1, m: 0 } : { ...c, m: c.m + 1 })
@@ -98,19 +52,7 @@ const CalendarCard = ({ enrolledCourses = [] }) => {
   ]
 
   const todayDate = today.getDate(), todayMon = today.getMonth(), todayYr = today.getFullYear()
-  const selDow = dowOf(sel.y, sel.m, sel.d)
-  const selLabel = `${DAYS_ID[selDow]}, ${sel.d} ${MONTHS_ID[sel.m]} ${sel.y}`
-
-  // apakah tanggal (di bulan yg ditampilkan) punya kelas + masuk minggu aktif
-  const dayHasClass = (d) => {
-    if (!isTeachingDate(cur.y, cur.m, d)) return false
-    const name = DAYS_ID[dowOf(cur.y, cur.m, d)]
-    return (jadwalPerHari[name] || []).length > 0
-  }
-
-  // kelas pada tanggal terpilih
-  const selClasses = isTeachingDate(sel.y, sel.m, sel.d) ? (jadwalPerHari[DAYS_ID[selDow]] || []) : []
-  const selIsBreak = isBreakDate(sel.y, sel.m, sel.d)
+  const selLabel = `${DAYS_ID[dowOf(sel.y, sel.m, sel.d)]}, ${sel.d} ${MONTHS_ID[sel.m]} ${sel.y}`
 
   const cellCls = (cell) => {
     if (cell.other) return 'text-gray-300 cursor-default'
@@ -145,50 +87,22 @@ const CalendarCard = ({ enrolledCourses = [] }) => {
 
       {/* grid tanggal */}
       <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((cell, i) => {
-          const showDot = !cell.other && dayHasClass(cell.d)
-          const isTodayCell = !cell.other && cur.y === todayYr && cur.m === todayMon && cell.d === todayDate
-          return (
-            <button key={i} disabled={cell.other}
-              onClick={() => !cell.other && setSel({ y: cur.y, m: cur.m, d: cell.d })}
-              className={`relative text-center text-xs py-1.5 rounded-md transition-colors ${cellCls(cell)}`}>
-              {cell.d}
-              {showDot && (
-                <span className={`absolute left-1/2 -translate-x-1/2 bottom-0.5 w-1 h-1 rounded-full ${isTodayCell ? 'bg-white' : 'bg-green-600'}`} />
-              )}
-            </button>
-          )
-        })}
+        {cells.map((cell, i) => (
+          <button key={i} disabled={cell.other}
+            onClick={() => !cell.other && setSel({ y: cur.y, m: cur.m, d: cell.d })}
+            className={`text-center text-xs py-1.5 rounded-md transition-colors ${cellCls(cell)}`}>
+            {cell.d}
+          </button>
+        ))}
       </div>
 
       {/* panel jadwal tanggal terpilih */}
       <div className="border-t border-gray-100 mt-3 pt-3">
         <p className="text-xs font-bold text-gray-800 mb-2">{selLabel}</p>
-
-        {selClasses.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {selClasses.map((k, idx) => (
-              <div key={idx} className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-600 mt-1.5 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-[11px] font-semibold text-gray-800 leading-snug">{k.title}</div>
-                  {(k.startTime || k.endTime) && (
-                    <div className="text-[10px] text-gray-500">
-                      {k.startTime}{k.endTime ? ` – ${k.endTime}` : ''}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-3">
-            <I.calendar width={32} height={32} className="mx-auto text-gray-300 mb-1.5" />
-            <p className="text-[11px] text-gray-400">
-              {selIsBreak ? 'Libur semester' : 'Tidak ada jadwal kelas di tanggal ini'}
-            </p>
-          </div>
-        )}
+        <div className="text-center py-3">
+          <I.calendar width={32} height={32} className="mx-auto text-gray-300 mb-1.5" />
+          <p className="text-[11px] text-gray-400">Tidak ada jadwal kelas di tanggal ini</p>
+        </div>
       </div>
     </div>
   )
@@ -197,21 +111,10 @@ const CalendarCard = ({ enrolledCourses = [] }) => {
 /* ============================================================
    Kartu kelas — navigasi mengikuti alur asli: /course/:id
    ============================================================ */
-const barColor = (p) => (p === 0 ? '#9ca3af' : p < 50 ? '#f59e0b' : '#16a34a')
-
 const ClassCard = ({ course }) => {
-  const educatorName = course?.pengajar?.nama || course?.pengajarNama || 'Dosen Pengajar'
-
-  // Jadwal
-  const sch = course?.schedule
-  const jadwal = sch?.day
-    ? `${sch.day}${sch.startTime ? `, ${sch.startTime}` : ''}${sch.endTime ? ` – ${sch.endTime}` : ''}`
-    : null
-
-  // Kehadiran (dari endpoint enrolled-courses yang sudah diperkaya)
-  const hadir = course?.kehadiran?.hadir ?? 0
-  const totalSesi = course?.kehadiran?.totalSesi ?? 0
-  const pct = totalSesi > 0 ? Math.round((hadir / totalSesi) * 100) : 0
+  const sesi = Array.isArray(course?.courseContent) ? course.courseContent.length : 0
+  const peserta = Array.isArray(course?.enrolledStudents) ? course.enrolledStudents.length : 0
+  const educatorName = course?.educator?.name || 'Dosen Pengajar'
 
   return (
     <Link to={`/course/${course._id}`} onClick={() => window.scrollTo(0, 0)}
@@ -223,30 +126,19 @@ const ClassCard = ({ course }) => {
         Kelas Akademik
       </span>
 
-      {/* Pengajar */}
       <div className="flex items-center gap-1.5 text-[11px] text-gray-700 mb-1">
         <I.user width={12} height={12} className="text-gray-400 shrink-0" />
         <span className="truncate">{educatorName}</span>
       </div>
-
-      {/* Jadwal */}
       <div className="flex items-center gap-1.5 text-[11px] text-gray-700">
-        <I.calendar width={12} height={12} className="text-gray-400 shrink-0" />
-        <span>{jadwal || 'Jadwal belum tersedia'}</span>
+        <I.book width={12} height={12} className="text-gray-400 shrink-0" />
+        <span>{sesi > 0 ? `${sesi} sesi pembelajaran` : 'Materi tersedia'}</span>
       </div>
 
-      {/* Progress kehadiran */}
-      {totalSesi > 0 && (
-        <div className="mt-2.5 pt-2.5 border-t border-gray-50">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-gray-500">Kehadiran: {hadir} dari {totalSesi} sesi</span>
-            <span className="text-[10px] font-semibold" style={{ color: barColor(pct) }}>{pct}%</span>
-          </div>
-          <div className="h-1 bg-gray-200 rounded-full">
-            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor(pct) }} />
-          </div>
-        </div>
-      )}
+      <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-2 pt-2 border-t border-gray-50">
+        <I.user width={11} height={11} className="text-gray-400 shrink-0" />
+        <span>{peserta} peserta terdaftar</span>
+      </div>
     </Link>
   )
 }
@@ -289,7 +181,7 @@ const Home = () => {
     )
   }, [baseClasses, search])
 
-  const displayName = userData?.namaKeprajaan || userData?.name || 'Praja'
+  const displayName = userData?.name || 'Praja'
 
   return (
     <div className="min-h-screen bg-gray-100 w-full text-left">
@@ -299,7 +191,7 @@ const Home = () => {
         <div className="flex flex-col lg:flex-row gap-4 items-start">
           {/* ===== Sidebar kiri ===== */}
           <aside className="w-full lg:w-64 shrink-0 flex flex-col gap-3">
-            <CalendarCard enrolledCourses={baseClasses} />
+            <CalendarCard />
 
             {/* Perlu Dikerjakan */}
             <div className="bg-white border border-gray-200 rounded-xl p-4">
@@ -364,8 +256,9 @@ const Home = () => {
                           value={semester}
                           onChange={e => setSemester(e.target.value)}
                           className="appearance-none pl-3 pr-8 py-2 text-[11px] text-gray-700 border border-gray-200 rounded-lg bg-white outline-none cursor-pointer focus:border-green-500">
-                          <option>2026 Genap</option>
-                          <option>2026 Ganjil</option>
+                          <option>2025 Ganjil</option>
+                          <option>2024 Genap</option>
+                          <option>2024 Ganjil</option>
                         </select>
                         <I.chevD width={12} height={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                       </div>

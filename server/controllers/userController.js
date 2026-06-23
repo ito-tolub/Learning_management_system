@@ -5,55 +5,64 @@ import Stripe from "stripe";
 import Course from "../models/Course.js";
 import mongoose from "mongoose";
 import { CourseProgress } from "../models/CourseProgress.js";
+import Pegawai from "../models/pegawai.js";
 
 export const updateCourseProgress = async (req, res) => {
   try {
-    const userId = req.auth.userId
-    const { courseId, lectureId } = req.body
+    const userId = req.auth.userId;
+    const { courseId, lectureId } = req.body;
 
-    let progress = await CourseProgress.findOne({ userId, courseId })
+    let progress = await CourseProgress.findOne({ userId, courseId });
 
     if (!progress) {
       // Buat baru jika belum ada
       progress = new CourseProgress({
         userId,
         courseId,
-        lectureCompleted: [lectureId]
-      })
+        lectureCompleted: [lectureId],
+      });
     } else {
       // Toggle — jika sudah ada hapus, jika belum ada tambah
       if (progress.lectureCompleted.includes(lectureId)) {
-        progress.lectureCompleted = progress.lectureCompleted.filter(id => id !== lectureId)
+        progress.lectureCompleted = progress.lectureCompleted.filter(
+          (id) => id !== lectureId,
+        );
       } else {
-        progress.lectureCompleted.push(lectureId)
+        progress.lectureCompleted.push(lectureId);
       }
     }
 
-    await progress.save()
-    res.json({ success: true, message: 'Progress updated' })
+    await progress.save();
+    res.json({ success: true, message: "Progress updated" });
   } catch (error) {
-    res.json({ success: false, message: error.message })
+    res.json({ success: false, message: error.message });
   }
-}
+};
 
 export const getUserData = async (req, res) => {
   try {
-    const userId = req.auth.userId
-    const user = await User.findById(userId).lean()
+    const userId = req.auth.userId;
+    const user = await User.findById(userId).lean();
 
     if (!user) {
-      return res.json({ success: false, message: 'User not found' })
+      return res.json({ success: false, message: "User not found" });
     }
 
-    let keprajaan = null
+    let keprajaan = null;
     if (user.npp) {
-      const allKeprajaan = await Keprajaan.find({}).lean()
-      keprajaan = allKeprajaan.find(k => 
-        k.npp.toString() === user.npp.toString()
-      ) || null
+      const allKeprajaan = await Keprajaan.find({}).lean();
+      keprajaan =
+        allKeprajaan.find((k) => k.npp.toString() === user.npp.toString()) ||
+        null;
     }
 
-    console.log('keprajaan found:', keprajaan) // ← tambah ini sementara
+    console.log("keprajaan found:", keprajaan); // ← tambah ini sementara
+    console.log("DEBUG npp →", {
+      userNpp: user.npp,
+      userNppType: typeof user.npp,
+      totalKeprajaan: (await Keprajaan.find({}).lean()).length,
+      matched: keprajaan?.nama ?? "TIDAK KETEMU",
+    });
 
     const userWithKeprajaan = {
       ...user,
@@ -61,13 +70,13 @@ export const getUserData = async (req, res) => {
       samapta: keprajaan?.samapta ?? null,
       nilaiAkhir: keprajaan?.nilaiAkhir ?? null,
       namaKeprajaan: keprajaan?.nama ?? null,
-    }
+    };
 
-    res.json({ success: true, user: userWithKeprajaan })
+    res.json({ success: true, user: userWithKeprajaan });
   } catch (error) {
-    res.json({ success: false, message: error.message })
+    res.json({ success: false, message: error.message });
   }
-}
+};
 
 export const saveNpp = async (req, res) => {
   try {
@@ -123,21 +132,57 @@ export const saveNpp = async (req, res) => {
   }
 };
 
-//User Enrolled Courses With Lecture Link
 export const userEnrolledCourses = async (req, res) => {
   try {
     const userId = req.auth.userId;
 
     const userData = await User.findById(userId).populate("enrolledCourses");
+    const courses = userData?.enrolledCourses || [];
 
-    // if (!userData) {
-    //   return res.json({ success: false, message: 'User Not Found' });
-    // }
+    // Kumpulkan NIP educator, ambil namanya dari koleksi pegawai
+    const nips = [
+      ...new Set(courses.map((c) => String(c.educator)).filter(Boolean)),
+    ];
+    const pegawaiList = await Pegawai.find({ nip: { $in: nips } }).lean();
+    const namaByNip = Object.fromEntries(
+      pegawaiList.map((p) => [String(p.nip), p.nama]),
+    );
 
-    res.json({
-      success: true,
-      enrolledCourses: userData.enrolledCourses,
-    });
+    const enriched = await Promise.all(
+      courses.map(async (c) => {
+        const obj = c.toObject ? c.toObject() : c;
+
+        // total sesi = jumlah chapter (pertemuan)
+        const totalSesi = Array.isArray(obj.courseContent)
+          ? obj.courseContent.length
+          : 0;
+
+        const progress = await CourseProgress.findOne({
+          userId,
+          courseId: obj._id.toString(),
+        }).lean();
+        const completedSet = new Set(progress?.lectureCompleted || []);
+
+        // hadir = jumlah chapter dengan minimal 1 lecture selesai
+        const hadir = (obj.courseContent || []).reduce((acc, ch) => {
+          const lectures = Array.isArray(ch.chapterContent)
+            ? ch.chapterContent
+            : [];
+          return (
+            acc + (lectures.some((l) => completedSet.has(l.lectureId)) ? 1 : 0)
+          );
+        }, 0);
+
+        return {
+          ...obj,
+          pengajarNama:
+            obj.pengajarNama || namaByNip[String(obj.educator)] || null,
+          kehadiran: { hadir, totalSesi },
+        };
+      }),
+    );
+
+    res.json({ success: true, enrolledCourses: enriched });
   } catch (error) {
     res.json({ success: false, message: error.message });
   }

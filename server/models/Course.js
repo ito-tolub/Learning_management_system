@@ -6,7 +6,7 @@ const lectureSchema = new mongoose.Schema(
     lectureTitle: { type: String, required: true },
     lectureDuration: { type: Number, required: true },
     lectureUrl: { type: String, required: true },
-    isPreviewFree: {type: Boolean, required: true},
+    isPreviewFree: { type: Boolean, required: true },
     lectureOrder: { type: Number, required: true },
   },
   { _id: false }
@@ -19,26 +19,61 @@ const chapterSchema = new mongoose.Schema(
     chapterTitle: { type: String, required: true },
     chapterContent: [lectureSchema],
   },
-  { _id: false });
+  { _id: false }
+);
 
-const courseSchema = new mongoose.Schema({
-  courseTitle: { type: String, required: true },
-  courseDescription: { type: String, required: true },
-  courseThumbnail: { type: String },
-  coursePrice: { type: Number, required: true },
-  isPublished: { type: Boolean, default: true },
-  discount: { type: Number, required: true, min: 0, max: 100 },
-  courseContent: [],
-  courseRatings: [
-    { userId: { type: String }, rating: { type: Number, min: 1, max: 5 } }
-  ],
-  educator: { type: String, ref: 'User', required: true },
-  enrolledStudents: [
-    { type: String, ref: 'User' }
-  ],
-  tags: { type: String, enum: ['V', 'A', 'R', 'K'], default: 'V' },
-}, { timestamps: true, minimize: false })
+const courseSchema = new mongoose.Schema(
+  {
+    courseTitle: { type: String, required: true },
+    courseDescription: { type: String, required: true },
+    courseThumbnail: { type: String },
+    coursePrice: { type: Number, required: true },
+    isPublished: { type: Boolean, default: true },
+    discount: { type: Number, required: true, min: 0, max: 100 },
+    courseContent: [],
+    courseRatings: [
+      { userId: { type: String }, rating: { type: Number, min: 1, max: 5 } },
+    ],
 
+    educator: { type: String, required: true }, // NIP dosen (kunci ke pegawai.nip)
 
+    enrolledStudents: [{ type: String, ref: "User" }],
+
+    // Jadwal kelas (diisi via seed)
+    schedule: {
+      day: {
+        type: String,
+        enum: ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"],
+        default: null,
+      },
+      startTime: { type: String, default: null }, // "08:00"
+      endTime: { type: String, default: null }, // "09:40"
+    },
+
+    // Override nama dosen utk tampilan (opsional; menang atas virtual 'pengajar')
+    pengajarNama: { type: String, default: null },
+
+    tags: { type: String, enum: ["V", "A", "R", "K"], default: "V" },
+  },
+  {
+    timestamps: true,
+    minimize: false,
+    toJSON: { virtuals: true }, // ← wajib agar virtual ikut saat di-JSON-kan
+    toObject: { virtuals: true },
+  }
+);
+
+/* ============================================================
+   VIRTUAL — HARUS didefinisikan SEBELUM mongoose.model(...)
+   Menghubungkan course.educator (NIP) → pegawai.nip → pegawai.nama
+   ============================================================ */
+courseSchema.virtual("pengajar", {
+  ref: "Pegawai",
+  localField: "educator", // nilai NIP di course
+  foreignField: "nip", // dicocokkan ke pegawai.nip
+  justOne: true,
+});
+
+// Model dikompilasi PALING AKHIR, setelah virtual terpasang
 const Course = mongoose.model("Course", courseSchema);
 export default Course;

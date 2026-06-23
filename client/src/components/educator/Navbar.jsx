@@ -1,13 +1,54 @@
 import React, { useContext, useRef, useState, useEffect } from 'react'
 import { assets } from '../../assets/assets'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useClerk, UserButton, useUser } from '@clerk/clerk-react'
 import { AppContext } from '../../context/AppContext'
 import axios from 'axios'
 import { toast } from 'react-toastify'
 
+/* ============================================================
+   Tombol profil dosen + dropdown "Keluar"
+   Didefinisikan di LEVEL ATAS (bukan di dalam Navbar) agar tidak
+   remount tiap render — inilah penyebab tombol Keluar tak berfungsi.
+   ============================================================ */
+const DosenUserButton = ({ mobile = false, dosenNama, showMenu, setShowMenu, menuRef, onSignOut }) => {
+  const initial = dosenNama ? dosenNama.charAt(0).toUpperCase() : 'D'
+  return (
+    <div className='relative' ref={menuRef}>
+      <button
+        type='button'
+        onClick={() => setShowMenu(v => !v)}
+        className={`flex items-center gap-2 ${mobile ? '' : 'hover:opacity-80'}`}
+      >
+        <div className='w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold'>
+          {initial}
+        </div>
+        {!mobile && <span className='text-sm text-gray-700 max-w-30 truncate'>{dosenNama}</span>}
+      </button>
+
+      {showMenu && (
+        <div className='absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden'>
+          {mobile && (
+            <div className='px-4 py-2 text-sm text-gray-700 font-medium border-b border-gray-100 truncate'>
+              {dosenNama}
+            </div>
+          )}
+          <button
+            type='button'
+            onClick={onSignOut}
+            className='w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50'
+          >
+            Keluar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const Navbar = () => {
   const { navigate, backendUrl } = useContext(AppContext)
+  const location = useLocation()
   const isCourseListPage = location.pathname.includes('/course-list')
   const { openSignIn, signOut } = useClerk()
   const { user } = useUser()
@@ -54,48 +95,12 @@ const Navbar = () => {
     }
   }
 
-  const signOutDosen = async () => {
+  const signOutDosen = () => {
+    // Hapus seluruh sesi dosen
     localStorage.removeItem('dosenToken')
     localStorage.removeItem('dosenNama')
-    setDosenToken(null)
-    setDosenNama('')
-    setShowDosenMenu(false)
-    if (user) await signOut()
-    toast.success('Berhasil keluar')
-    navigate('/')
-  }
-
-  const DosenUserButton = ({ mobile = false }) => {
-    const initial = dosenNama ? dosenNama.charAt(0).toUpperCase() : 'D'
-    return (
-      <div className='relative' ref={menuRef}>
-        <button
-          onClick={() => setShowDosenMenu(v => !v)}
-          className={`flex items-center gap-2 ${mobile ? '' : 'hover:opacity-80'}`}
-        >
-          <div className='w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-semibold'>
-            {initial}
-          </div>
-          {!mobile && <span className='text-sm text-gray-700 max-w-30 truncate'>{dosenNama}</span>}
-        </button>
-
-        {showDosenMenu && (
-          <div className='absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden'>
-            {mobile && (
-              <div className='px-4 py-2 text-sm text-gray-700 font-medium border-b border-gray-100 truncate'>
-                {dosenNama}
-              </div>
-            )}
-            <button
-              onClick={signOutDosen}
-              className='w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50'
-            >
-              Keluar
-            </button>
-          </div>
-        )}
-      </div>
-    )
+    // Arahkan langsung ke home (hard redirect — pasti pindah & state ter-reset)
+    window.location.href = '/'
   }
 
   return (
@@ -105,7 +110,13 @@ const Navbar = () => {
 
         <div className='hidden md:flex items-center gap-5 text-gray-500'>
           {dosenToken
-            ? <DosenUserButton />
+            ? <DosenUserButton
+                dosenNama={dosenNama}
+                showMenu={showDosenMenu}
+                setShowMenu={setShowDosenMenu}
+                menuRef={menuRef}
+                onSignOut={signOutDosen}
+              />
             : (
               <button
                 onClick={() => setShowDosenModal(true)}
@@ -133,7 +144,14 @@ const Navbar = () => {
         {/* Mobile */}
         <div className='md:hidden flex items-center gap-2 sm:gap-5 text-gray-500'>
           {dosenToken
-            ? <DosenUserButton mobile />
+            ? <DosenUserButton
+                mobile
+                dosenNama={dosenNama}
+                showMenu={showDosenMenu}
+                setShowMenu={setShowDosenMenu}
+                menuRef={menuRef}
+                onSignOut={signOutDosen}
+              />
             : (
               <button
                 onClick={() => setShowDosenModal(true)}

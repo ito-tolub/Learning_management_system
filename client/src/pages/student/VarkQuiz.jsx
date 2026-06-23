@@ -199,13 +199,29 @@ const VarkQuiz = () => {
   }
 
   const calculateResult = async () => {
-    const scores = { V: 0, A: 0, R: 0, K: 0 }
+    // Hitung skor mentah
+    const rawScores = { V: 0, A: 0, R: 0, K: 0 }
     Object.values(answers).forEach(types => {
-      types.forEach(type => scores[type]++)
+      types.forEach(type => rawScores[type]++)
     })
-    const dominant = Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0]
-    const varkResult = { scores, dominant }
-    setResult(varkResult)
+
+    // Normalisasi L1: bagi setiap skor dengan total seluruh pilihan
+    // Menghasilkan distribusi proporsional [0,1] yang sebanding antar praja
+    const total = Object.values(rawScores).reduce((a, b) => a + b, 0)
+    const normalizedScores = {
+      V: total > 0 ? parseFloat((rawScores.V / total).toFixed(4)) : 0,
+      A: total > 0 ? parseFloat((rawScores.A / total).toFixed(4)) : 0,
+      R: total > 0 ? parseFloat((rawScores.R / total).toFixed(4)) : 0,
+      K: total > 0 ? parseFloat((rawScores.K / total).toFixed(4)) : 0,
+    }
+
+    const dominant = Object.entries(normalizedScores).sort((a, b) => b[1] - a[1])[0][0]
+
+    // Yang dikirim ke database: skor ternormalisasi [0,1]
+    const varkResult = { scores: normalizedScores, dominant }
+
+    // Yang ditampilkan di UI: skor mentah agar poin terbaca natural oleh praja
+    setResult({ scores: rawScores, dominant })
 
     try {
       setLoading(true)
