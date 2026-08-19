@@ -9,7 +9,7 @@ import jwt from "jsonwebtoken";
 import Pegawai from "../models/pegawai.js";
 import Keprajaan from "../models/Keprajaan.js";
 import bcrypt from "bcryptjs";
-import { calculateFeedbackScore } from "../utils/calculateFeedbackScore.js";
+import { calculateTargetEngagement } from "../utils/calculateFeedbackScore.js";
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
 
@@ -708,273 +708,622 @@ export const trackLectureActivity = async (req, res) => {
 // ─── Get SES (Student Engagement Score) ──────────────────────────────────────
 export const getStudentEngagementScore = async (req, res) => {
   try {
-    const courses = await Course.find({}).lean();
+    const courses =
+      await Course.find({})
+        .lean();
 
-    const courseMeta = {};
-    const lectureMap = {};
-    const courseMap = {};
+    const courseMap =
+      new Map(
+        courses.map(
+          (course) => [
+            course._id.toString(),
+            course,
+          ],
+        ),
+      );
 
-    for (const course of courses) {
-      const courseId = course._id.toString();
-      courseMap[course._id.toString()] = course;
-      let totalLecture = 0;
-      let expectedDurSec = 0;
-      course.courseContent?.forEach((ch) => {
-        ch.chapterContent?.forEach((lec) => {
-          totalLecture++;
-          expectedDurSec += (lec.lectureDuration || 0) * 60;
+    const courseIdStrings =
+      courses.map(
+        (course) =>
+          course._id.toString(),
+      );
 
-          // ← isi lectureMap sekalian
-          lectureMap[lec.lectureId] = {
-            lectureTitle: lec.lectureTitle,
-            lectureDuration: lec.lectureDuration || 0,
-            courseTitle: course.courseTitle,
-          };
-        });
-      });
+    const semuaPraja =
+      await Keprajaan.find(
+        {},
+        "npp nama mentalKepribadian kelas",
+      ).lean();
 
-      courseMeta[courseId] = {
-        courseTitle: course.courseTitle,
-        totalLecture,
-        expectedDurSec: expectedDurSec || totalLecture * 600,
-      };
-    }
+    const users =
+      await User.find(
+        {
+          npp: {
+            $exists: true,
+          },
+        },
+        "name npp enrolledCourses _id varkResult",
+      ).lean();
 
-    const courseIdStrings = courses.map((c) => c._id.toString());
-    const semuaPraja = await Keprajaan.find(
-      {},
-      "npp nama mentalKepribadian kelas",
-    ).lean();
+    const userByNpp =
+      new Map(
+        users
+          .filter(
+            (user) =>
+              user.npp != null,
+          )
+          .map(
+            (user) => [
+              String(
+                user.npp,
+              ).trim(),
 
-    const userByNpp = {};
-    const users = await User.find(
-      {
-        npp: { $exists: true },
-      },
-      "name npp enrolledCourses _id varkResult",
-    ).lean();
-    for (const u of users) {
-      if (u.npp != null) userByNpp[u.npp.toString()] = u;
-    }
+              user,
+            ],
+          ),
+      );
 
     const sesData = [];
 
-    for (const praja of semuaPraja) {
-      const nppStr = String(praja.npp || "").trim();
-      const user = users.find((u) => String(u.npp || "").trim() === nppStr);
+    for (
+      const praja of
+        semuaPraja
+    ) {
+      const nppStr =
+        String(
+          praja.npp || "",
+        ).trim();
 
-      console.log(
-        `praja: ${praja.nama}, npp: ${nppStr}, user ditemukan: ${!!user}`,
-      );
-      let interaksi = 0;
-      let feedback = 0;
+      const user =
+        userByNpp.get(
+          nppStr,
+        );
+
+      const normalizedClass =
+        String(
+          praja.kelas || "",
+        )
+          .trim()
+          .toUpperCase();
+
+      let grandInteractionEarned = 0;
+      let grandInteractionPossible = 0;
+
+      let grandCompletionEarned = 0;
+      let grandCompletionPossible = 0;
+
       let totalDurasiDetik = 0;
-      const detail = [];
+      let targetExpectedDurasiDetik = 0;
 
-      let grandFeedbackEarned = 0;
-      let grandFeedbackPossible = 0;
-      const feedbackDetails = [];
+      const detail = [];
+      const chapterDetails = [];
+
+      let explorationCount = 0;
+      let explorationAccessCount = 0;
+      let explorationCompletedCount = 0;
+
+      let explorationDurationSec = 0;
+      let explorationEffectiveDurationSec = 0;
+
+      let explorationInteractionEarned = 0;
+      let explorationInteractionPossible = 0;
+
+      const explorationDetails = [];
+
+      let recommendedDurationSec = 0;
+
+      let outsideRecommendationDurationSec = 0;
 
       if (user) {
-        const userCourseIds = (user.enrolledCourses || [])
-          .map((id) => id.toString())
-          .filter((id) => courseIdStrings.includes(id));
-
-        let grandExpectedDur = 0;
-        let grandActualDur = 0;
-
-        for (const courseId of userCourseIds) {
-          const meta = courseMeta[courseId];
-          const course = courseMap[courseId];
-
-          if (!meta || !course) continue;
-
-          const activities = await LectureActivity.find({
-            userId: user._id.toString(),
-            courseId,
-          }).lean();
-
-          const progress = await CourseProgress.findOne({
-            userId: user._id,
-            courseId,
-          }).lean();
-
-          // const actualDurSec = activities.reduce(
-          //   (sum, a) => sum + (a.totalDuration || 0),
-          //   0,
-          // );
-          // // const selesai = progress?.lectureCompleted?.length || 0;
-
-          // grandExpectedDur += meta.expectedDurSec;
-          // grandActualDur += actualDurSec;
-          // totalDurasiDetik += actualDurSec;
-
-          // ========================================
-          // FEEDBACK NORMALISASI 36 UNIT
-          // ========================================
-
-          const dominantVark = user?.varkResult?.dominant;
-
-          const mentalKepribadian = praja?.mentalKepribadian;
-
-          const feedbackResult = calculateFeedbackScore({
-            course,
-
-            lectureCompleted: progress?.lectureCompleted || [],
-
-            dominant: dominantVark,
-
-            mentalKepribadian,
-          });
-
-          grandFeedbackEarned += feedbackResult.earned;
-
-          grandFeedbackPossible += feedbackResult.possible;
-
-          feedbackDetails.push({
-            courseId,
-            courseTitle: course.courseTitle,
-
-            earned: feedbackResult.earned,
-            possible: feedbackResult.possible,
-
-            mainEarned: feedbackResult.mainEarned,
-
-            mainPossible: feedbackResult.mainPossible,
-
-            dominantEarned: feedbackResult.dominantEarned,
-
-            dominantPossible: feedbackResult.dominantPossible,
-
-            supplementaryEarned: feedbackResult.supplementaryEarned,
-
-            supplementaryPossible: feedbackResult.supplementaryPossible,
-
-            chapterDetails: feedbackResult.chapterDetails,
-          });
-
-          // ← detail per objek pembelajaran yang diakses
-          // Detail + perhitungan Interaksi per objek pembelajaran yang diakses
-          for (const activity of activities) {
-            const info = lectureMap[activity.lectureId] || {};
-
-            // Durasi real yang tercatat dari aktivitas praja
-            const rawActualDurSec = Math.max(
-              Number(activity.totalDuration || 0),
-              0,
+        const userCourseIds =
+          (
+            user.enrolledCourses ||
+            []
+          )
+            .map(
+              (id) =>
+                id.toString(),
+            )
+            .filter(
+              (id) =>
+                courseIdStrings
+                  .includes(id),
             );
 
-            // Durasi expected objek pembelajaran
-            const expectedDurSec = Math.max(
-              Number(info.lectureDuration || 0) * 60,
-              0,
+        for (
+          const courseId of
+            userCourseIds
+        ) {
+          const course =
+            courseMap.get(
+              courseId,
             );
 
-            /*
-             * Durasi efektif:
-             * aktual tidak boleh melebihi expected duration.
-             *
-             * Contoh:
-             * expected = 10 menit
-             * real     = 25 menit
-             * effective = 10 menit
-             */
-            const effectiveActualDurSec =
-              expectedDurSec > 0
-                ? Math.min(rawActualDurSec, expectedDurSec)
-                : 0;
-
-            /*
-             * Hanya objek yang memiliki expected duration > 0
-             * yang berkontribusi terhadap skor Interaksi.
-             */
-            if (expectedDurSec > 0) {
-              grandExpectedDur += expectedDurSec;
-              grandActualDur += effectiveActualDurSec;
-              totalDurasiDetik += effectiveActualDurSec;
-            }
-
-            detail.push({
-              lectureId: activity.lectureId,
-              lectureTitle: info.lectureTitle || activity.lectureId,
-              courseTitle: info.courseTitle || "",
-
-              accessCount: activity.accessCount,
-
-              // Durasi real untuk audit
-              rawActualDurSec,
-
-              // Durasi efektif yang dipakai dalam perhitungan
-              actualDurSec: effectiveActualDurSec,
-
-              expectedDurSec,
-
-              selesai: progress?.lectureCompleted?.includes(activity.lectureId)
-                ? 1
-                : 0,
-            });
+          if (!course) {
+            continue;
           }
-        }
 
-        if (grandExpectedDur > 0) {
-          interaksi = Math.min((grandActualDur / grandExpectedDur) * 100, 100);
-        }
-        if (grandFeedbackPossible > 0) {
-          feedback = Math.min(
-            (grandFeedbackEarned / grandFeedbackPossible) * 100,
-            100,
+          const activities =
+            await LectureActivity
+              .find({
+                userId:
+                  user._id
+                    .toString(),
+
+                courseId,
+              })
+              .lean();
+
+          const progress =
+            await CourseProgress
+              .findOne({
+                userId:
+                  user._id,
+
+                courseId,
+              })
+              .lean();
+
+          const targetResult =
+            calculateTargetEngagement({
+              course,
+
+              kelas:
+                normalizedClass,
+
+              lectureCompleted:
+                progress
+                  ?.lectureCompleted ||
+                [],
+
+              userVarkVector:
+                user
+                  ?.varkResult
+                  ?.scores ||
+                null,
+
+              mentalKepribadian:
+                praja
+                  ?.mentalKepribadian,
+
+              activities,
+            });
+
+          grandInteractionEarned +=
+            targetResult
+              .interactionEarned;
+
+          grandInteractionPossible +=
+            targetResult
+              .interactionPossible;
+
+          grandCompletionEarned +=
+            targetResult
+              .completionEarned;
+
+          grandCompletionPossible +=
+            targetResult
+              .completionPossible;
+
+          totalDurasiDetik +=
+            targetResult
+              .targetDurationSec;
+
+          targetExpectedDurasiDetik +=
+            targetResult
+              .targetExpectedDurationSec;
+
+          detail.push(
+            ...targetResult
+              .targetDetails
+              .map(
+                (item) => ({
+                  ...item,
+
+                  courseId,
+
+                  courseTitle:
+                    course
+                      .courseTitle,
+                }),
+              ),
           );
+
+          chapterDetails.push(
+            ...targetResult
+              .chapterDetails
+              .map(
+                (item) => ({
+                  ...item,
+
+                  courseId,
+
+                  courseTitle:
+                    course
+                      .courseTitle,
+                }),
+              ),
+          );
+
+          explorationCount +=
+            targetResult
+              .exploration
+              .count;
+
+          explorationAccessCount +=
+            targetResult
+              .exploration
+              .accessCount;
+
+          explorationCompletedCount +=
+            targetResult
+              .exploration
+              .completedCount;
+
+          explorationDurationSec +=
+            targetResult
+              .exploration
+              .durationSec;
+
+          explorationEffectiveDurationSec +=
+            targetResult
+              .exploration
+              .effectiveDurationSec;
+
+          explorationInteractionEarned +=
+            targetResult
+              .exploration
+              .interactionEarned;
+
+          explorationInteractionPossible +=
+            targetResult
+              .exploration
+              .interactionPossible;
+
+          explorationDetails.push(
+            ...targetResult
+              .exploration
+              .details
+              .map(
+                (item) => ({
+                  ...item,
+
+                  courseId,
+
+                  courseTitle:
+                    course
+                      .courseTitle,
+                }),
+              ),
+          );
+
+          if (
+            normalizedClass ===
+              "G2" &&
+            targetResult
+              .recommendationAdherence
+          ) {
+            recommendedDurationSec +=
+              targetResult
+                .recommendationAdherence
+                .recommendedDurationSec;
+
+            outsideRecommendationDurationSec +=
+              targetResult
+                .recommendationAdherence
+                .outsideRecommendationDurationSec;
+          }
         }
       }
 
-      console.log("===== FEEDBACK 36 UNIT =====");
-      console.log({
-        nama: praja.nama,
-        npp: praja.npp,
-        dominantVark: user?.varkResult?.dominant,
-        mentalKepribadian: praja?.mentalKepribadian,
-        feedbackEarned: grandFeedbackEarned,
-        feedbackPossible: grandFeedbackPossible,
-        feedbackPercent: feedback,
-        feedbackDetails,
-      });
+      const interaksi =
+        grandInteractionPossible >
+        0
+          ? Math.min(
+              (
+                grandInteractionEarned /
+                grandInteractionPossible
+              ) * 100,
+              100,
+            )
+          : 0;
 
-      const ses = interaksi * 0.3 + feedback * 0.3 + 100 * 0.4;
+      const feedback =
+        grandCompletionPossible >
+        0
+          ? Math.min(
+              (
+                grandCompletionEarned /
+                grandCompletionPossible
+              ) * 100,
+              100,
+            )
+          : 0;
 
-      let kategori = "Tidak Aktif";
-      let kategoriColor = "red";
+      const explorationAverageInteraction =
+        explorationInteractionPossible >
+        0
+          ? (
+              explorationInteractionEarned /
+              explorationInteractionPossible
+            ) * 100
+          : 0;
+
+      const explorationTop4 =
+        [
+          ...explorationDetails,
+        ]
+          .sort(
+            (a, b) => {
+              const interactionA =
+                Number.isFinite(
+                  Number(
+                    a.interactionPercent,
+                  ),
+                )
+                  ? Number(
+                      a.interactionPercent,
+                    )
+                  : -1;
+
+              const interactionB =
+                Number.isFinite(
+                  Number(
+                    b.interactionPercent,
+                  ),
+                )
+                  ? Number(
+                      b.interactionPercent,
+                    )
+                  : -1;
+
+              if (
+                interactionB !==
+                interactionA
+              ) {
+                return (
+                  interactionB -
+                  interactionA
+                );
+              }
+
+              const durationA =
+                Number(
+                  a.effectiveDurationSec ||
+                    0,
+                );
+
+              const durationB =
+                Number(
+                  b.effectiveDurationSec ||
+                    0,
+                );
+
+              if (
+                durationB !==
+                durationA
+              ) {
+                return (
+                  durationB -
+                  durationA
+                );
+              }
+
+              return (
+                Number(
+                  b.accessCount ||
+                    0,
+                ) -
+                Number(
+                  a.accessCount ||
+                    0,
+                )
+              );
+            },
+          )
+          .slice(
+            0,
+            4,
+          );
+
+      const totalAdditionalDurationSec =
+        recommendedDurationSec +
+        outsideRecommendationDurationSec;
+
+      const recommendationAdherence =
+        normalizedClass ===
+        "G2"
+          ? {
+              durationPercent:
+                totalAdditionalDurationSec >
+                0
+                  ? (
+                      Math.round(
+                        (
+                          recommendedDurationSec /
+                          totalAdditionalDurationSec
+                        ) *
+                          1000,
+                      ) /
+                      10
+                    )
+                  : null,
+
+              recommendedDurationSec,
+
+              outsideRecommendationDurationSec,
+
+              totalAdditionalDurationSec,
+            }
+          : null;
+
+      /*
+       * Sementara tetap 100
+       * sampai modul presensi
+       * aktual dihubungkan.
+       */
+      const presensi = 100;
+
+      const ses =
+        (
+          interaksi *
+          0.3
+        ) +
+        (
+          feedback *
+          0.3
+        ) +
+        (
+          presensi *
+          0.4
+        );
+
+      let kategori =
+        "Tidak Aktif";
+
+      let kategoriColor =
+        "red";
+
       if (ses >= 80) {
-        kategori = "Sangat Aktif";
-        kategoriColor = "green";
-      } else if (ses >= 65) {
-        kategori = "Aktif";
-        kategoriColor = "yellow";
-      } else if (ses >= 50) {
-        kategori = "Kurang Aktif";
-        kategoriColor = "orange";
+        kategori =
+          "Sangat Aktif";
+
+        kategoriColor =
+          "green";
+      } else if (
+        ses >= 65
+      ) {
+        kategori =
+          "Aktif";
+
+        kategoriColor =
+          "yellow";
+      } else if (
+        ses >= 50
+      ) {
+        kategori =
+          "Kurang Aktif";
+
+        kategoriColor =
+          "orange";
       }
 
       sesData.push({
-        userId: user?._id || null,
-        nama: praja.nama,
-        npp: praja.npp,
-        kelas: praja.kelas,
+        userId:
+          user?._id ||
+          null,
 
-        interaksi: Math.round(interaksi * 10) / 10,
-        feedback: Math.round(feedback * 10) / 10,
-        presensi: 100,
-        ses: Math.round(ses * 100) / 100,
+        nama:
+          praja.nama,
+
+        npp:
+          praja.npp,
+
+        kelas:
+          praja.kelas,
+
+        interaksi:
+          Math.round(
+            interaksi *
+              10,
+          ) / 10,
+
+        feedback:
+          Math.round(
+            feedback *
+              10,
+          ) / 10,
+
+        presensi,
+
+        ses:
+          Math.round(
+            ses *
+              100,
+          ) / 100,
+
+        interactionEarned:
+          Number(
+            grandInteractionEarned
+              .toFixed(4),
+          ),
+
+        interactionPossible:
+          grandInteractionPossible,
+
+        completionEarned:
+          grandCompletionEarned,
+
+        completionPossible:
+          grandCompletionPossible,
 
         totalDurasiDetik,
+
+        targetExpectedDurasiDetik,
+
         kategori,
         kategoriColor,
+
         detail,
+
+        chapterDetails,
+
+        exploration: {
+          count:
+            explorationCount,
+
+          accessCount:
+            explorationAccessCount,
+
+          completedCount:
+            explorationCompletedCount,
+
+          durationSec:
+            explorationDurationSec,
+
+          effectiveDurationSec:
+            explorationEffectiveDurationSec,
+
+          averageInteractionPercent:
+            (
+              Math.round(
+                explorationAverageInteraction *
+                  10,
+              ) /
+              10
+            ),
+
+          top4:
+            explorationTop4,
+
+          details:
+            explorationDetails,
+        },
+
+        recommendationAdherence,
       });
     }
 
-    sesData.sort((a, b) => b.ses - a.ses);
-    res.json({ success: true, sesData });
+    sesData.sort(
+      (a, b) =>
+        b.ses - a.ses,
+    );
+
+    return res.json({
+      success: true,
+      sesData,
+    });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    console.error(
+      "Get Student Engagement Score Error:",
+      error,
+    );
+
+    return res.status(
+      500,
+    ).json({
+      success: false,
+      message:
+        error.message,
+    });
   }
 };

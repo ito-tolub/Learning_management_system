@@ -1,99 +1,1755 @@
-const normalizeDominantVark = (dominant) => {
-  if (!dominant) return null;
-
-  const value = String(dominant)
-    .trim()
-    .toUpperCase();
-
-  if (value === "V" || value === "VISUAL") return "V";
-  if (value === "A" || value === "AURAL" || value === "AUDITORY") {
-    return "A";
-  }
-  if (value === "R" || value === "READ" || value === "READING") {
-    return "R";
-  }
-  if (value === "K" || value === "KINESTHETIC") return "K";
-
-  return null;
+const HYBRID_WEIGHT = {
+  vark: 0.7,
+  instructional: 0.3,
 };
 
+const RECOMMENDATION_LIMIT = 4;
+const MENTAL_REFERENCE_VALUE = 84;
 
-/**
- * Mencari objek modalitas dominan sesuai profil praja.
- *
- * V/A/R:
- *   mental >= 84 -> macro
- *   mental < 84  -> micro
- *
- * K:
- *   mental >= 84 -> C4-C6
- *   mental < 84  -> C1-C3
- */
-const getDominantLectures = ({
-  chapter,
-  dominantVark,
-  mentalKepribadian,
-}) => {
-  const lectures = chapter.chapterContent || [];
+export const MAIN_LECTURE_IDS_BY_CHAPTER = {
+  pertemuan1: ["op1.1", "op1.2"],
+  pertemuan2: ["op2.1", "op2.2"],
+  pertemuan3: ["op3.29", "op3.30", "op3.31"],
+  pertemuan4: ["op4.25", "op4.24"],
+  pertemuan5: ["op5.25", "op5.24"],
+  pertemuan6: ["op6.25", "op6.24"],
+  pertemuan7: ["op7.22", "op7.21"],
+};
 
-  const mainSet = new Set(
-    (chapter.mainLectureIds || []).map(String)
+const normalizeVark = (value) => {
+  if (!value) return null;
+
+  const normalized = String(value)
+    .toLowerCase()
+    .trim();
+
+  if (
+    normalized === "v" ||
+    normalized.startsWith("vis")
+  ) {
+    return "V";
+  }
+
+  if (
+    normalized === "a" ||
+    normalized.startsWith("aud")
+  ) {
+    return "A";
+  }
+
+  if (
+    normalized === "r" ||
+    normalized.startsWith("read")
+  ) {
+    return "R";
+  }
+
+  if (
+    normalized === "k" ||
+    normalized.startsWith("kine")
+  ) {
+    return "K";
+  }
+
+  return String(value)
+    .toUpperCase()
+    .charAt(0);
+};
+
+const cosineSimilarity = (
+  userVector,
+  objectVector,
+) => {
+  if (!userVector || !objectVector) {
+    return 0;
+  }
+
+  const keys = [
+    "V",
+    "A",
+    "R",
+    "K",
+  ];
+
+  const user = keys.map(
+    (key) =>
+      Number(
+        userVector[key] || 0,
+      ),
   );
 
-  const highMental =
-    Number(mentalKepribadian) >= 84;
+  const object = keys.map(
+    (key) =>
+      Number(
+        objectVector[key] || 0,
+      ),
+  );
 
-  return lectures.filter((lecture) => {
-    if (!lecture?.lectureId) return false;
+  const dot = user.reduce(
+    (
+      sum,
+      value,
+      index,
+    ) =>
+      sum +
+      value * object[index],
+    0,
+  );
 
-    const lectureId = String(lecture.lectureId);
+  const userNorm = Math.sqrt(
+    user.reduce(
+      (sum, value) =>
+        sum + value ** 2,
+      0,
+    ),
+  );
 
-    // Materi utama tidak boleh dihitung dua kali
-    if (mainSet.has(lectureId)) {
-      return false;
-    }
+  const objectNorm = Math.sqrt(
+    object.reduce(
+      (sum, value) =>
+        sum + value ** 2,
+      0,
+    ),
+  );
 
-    const tag = String(
-      lecture.tags || ""
-    ).toUpperCase();
+  if (
+    userNorm === 0 ||
+    objectNorm === 0
+  ) {
+    return 0;
+  }
 
-    if (tag !== dominantVark) {
-      return false;
-    }
+  return (
+    dot /
+    (
+      userNorm *
+      objectNorm
+    )
+  );
+};
 
-    // Khusus Kinestetik
-    if (dominantVark === "K") {
-      const expectedLevel = highMental
+const getInstructionalProfile = (
+  mentalKepribadian,
+) => {
+  const score = Number(
+    mentalKepribadian,
+  );
+
+  if (
+    !Number.isFinite(score)
+  ) {
+    return null;
+  }
+
+  return {
+    contentGranularity:
+      score >=
+      MENTAL_REFERENCE_VALUE
+        ? "macro"
+        : "micro",
+
+    cognitiveLevel:
+      score >=
+      MENTAL_REFERENCE_VALUE
         ? "C4-C6"
-        : "C1-C3";
+        : "C1-C3",
+  };
+};
+
+const getInstructionalCompatibility = (
+  lecture,
+  profile,
+) => {
+  if (
+    !lecture ||
+    !profile
+  ) {
+    return 0;
+  }
+
+  const modality =
+    normalizeVark(
+      lecture.tags,
+    );
+
+  if (modality === "K") {
+    return (
+      lecture.cognitiveLevel ===
+      profile.cognitiveLevel
+        ? 1
+        : 0
+    );
+  }
+
+  if (
+    [
+      "V",
+      "A",
+      "R",
+    ].includes(modality)
+  ) {
+    return (
+      lecture.contentGranularity ===
+      profile.contentGranularity
+        ? 1
+        : 0
+    );
+  }
+
+  return 0;
+};
+
+const scoreLecture = ({
+  lecture,
+  userVarkVector,
+  instructionalProfile,
+}) => {
+  const varkSimilarity =
+    cosineSimilarity(
+      userVarkVector,
+      lecture?.varkvektor,
+    );
+
+  const instructionalCompatibility =
+    getInstructionalCompatibility(
+      lecture,
+      instructionalProfile,
+    );
+
+  const hybridScore =
+    (
+      HYBRID_WEIGHT.vark *
+      varkSimilarity
+    ) +
+    (
+      HYBRID_WEIGHT.instructional *
+      instructionalCompatibility
+    );
+
+  return {
+    varkSimilarity,
+    instructionalCompatibility,
+    hybridScore,
+
+    hybridPercentage:
+      Number(
+        (
+          hybridScore *
+          100
+        ).toFixed(2),
+      ),
+  };
+};
+
+const numberOrInfinity = (
+  value,
+) => {
+  const number =
+    Number(value);
+
+  return Number.isFinite(
+    number,
+  )
+    ? number
+    : Number.POSITIVE_INFINITY;
+};
+
+const getConfiguredMainIds = (
+  chapter,
+) => {
+  const configured =
+    MAIN_LECTURE_IDS_BY_CHAPTER[
+      chapter?.chapterId
+    ];
+
+  if (
+    Array.isArray(
+      configured,
+    ) &&
+    configured.length > 0
+  ) {
+    return configured.map(
+      String,
+    );
+  }
+
+  if (
+    Array.isArray(
+      chapter?.mainLectureIds,
+    )
+  ) {
+    return (
+      chapter.mainLectureIds
+        .map(String)
+    );
+  }
+
+  return [];
+};
+
+const getChapterLecturesWithIndex = (
+  chapter,
+) =>
+  (
+    Array.isArray(
+      chapter?.chapterContent,
+    )
+      ? chapter.chapterContent
+      : []
+  ).map(
+    (
+      lecture,
+      index,
+    ) => ({
+      ...lecture,
+      _sourceIndex: index,
+    }),
+  );
+
+const getMainLectures = (
+  chapter,
+) => {
+  const lectures =
+    getChapterLecturesWithIndex(
+      chapter,
+    );
+
+  const mainIds =
+    getConfiguredMainIds(
+      chapter,
+    );
+
+  return mainIds
+    .map(
+      (lectureId) => {
+        const matchingLectures =
+          lectures
+            .filter(
+              (lecture) =>
+                String(
+                  lecture
+                    ?.lectureId ||
+                    "",
+                ) ===
+                lectureId,
+            )
+            .sort(
+              (a, b) => {
+                const orderDiff =
+                  numberOrInfinity(
+                    a.lectureOrder,
+                  ) -
+                  numberOrInfinity(
+                    b.lectureOrder,
+                  );
+
+                if (
+                  orderDiff !== 0
+                ) {
+                  return orderDiff;
+                }
+
+                return (
+                  a._sourceIndex -
+                  b._sourceIndex
+                );
+              },
+            );
+
+        return (
+          matchingLectures[0]
+        );
+      },
+    )
+    .filter(Boolean);
+};
+
+/*
+ * G1 menggunakan lectureId unik.
+ * ID materi utama tidak boleh
+ * dihitung lagi sebagai tambahan.
+ */
+const getUniqueNonMainLectures = (
+  chapter,
+  mainLectures,
+) => {
+  const lectures =
+    getChapterLecturesWithIndex(
+      chapter,
+    );
+
+  const mainIndexes =
+    new Set(
+      mainLectures.map(
+        (lecture) =>
+          lecture._sourceIndex,
+      ),
+    );
+
+  const mainIds =
+    new Set(
+      mainLectures.map(
+        (lecture) =>
+          String(
+            lecture.lectureId,
+          ),
+      ),
+    );
+
+  const byId =
+    new Map();
+
+  for (
+    const lecture of
+      lectures
+  ) {
+    if (
+      !lecture?.lectureId
+    ) {
+      continue;
+    }
+
+    if (
+      mainIndexes.has(
+        lecture._sourceIndex,
+      )
+    ) {
+      continue;
+    }
+
+    const lectureId =
+      String(
+        lecture.lectureId,
+      );
+
+    if (
+      mainIds.has(
+        lectureId,
+      )
+    ) {
+      continue;
+    }
+
+    const existing =
+      byId.get(
+        lectureId,
+      );
+
+    if (!existing) {
+      byId.set(
+        lectureId,
+        lecture,
+      );
+
+      continue;
+    }
+
+    const currentOrder =
+      numberOrInfinity(
+        lecture.lectureOrder,
+      );
+
+    const existingOrder =
+      numberOrInfinity(
+        existing.lectureOrder,
+      );
+
+    if (
+      currentOrder <
+        existingOrder ||
+      (
+        currentOrder ===
+          existingOrder &&
+        lecture._sourceIndex <
+          existing._sourceIndex
+      )
+    ) {
+      byId.set(
+        lectureId,
+        lecture,
+      );
+    }
+  }
+
+  return [
+    ...byId.values(),
+  ];
+};
+
+/*
+ * Kandidat G2 mengikuti Player.jsx:
+ * yang dikeluarkan hanya sourceIndex
+ * materi utama.
+ */
+const getG2RecommendationCandidates = (
+  chapter,
+  mainLectures,
+) => {
+  const lectures =
+    getChapterLecturesWithIndex(
+      chapter,
+    );
+
+  const mainIndexes =
+    new Set(
+      mainLectures.map(
+        (lecture) =>
+          lecture._sourceIndex,
+      ),
+    );
+
+  return lectures.filter(
+    (lecture) =>
+      lecture?.lectureId &&
+      !mainIndexes.has(
+        lecture._sourceIndex,
+      ),
+  );
+};
+
+const getG2Recommendations = ({
+  chapter,
+  mainLectures,
+  userVarkVector,
+  mentalKepribadian,
+}) => {
+  if (!userVarkVector) {
+    return [];
+  }
+
+  const instructionalProfile =
+    getInstructionalProfile(
+      mentalKepribadian,
+    );
+
+  const candidates =
+    getG2RecommendationCandidates(
+      chapter,
+      mainLectures,
+    );
+
+  return candidates
+    .filter(
+      (lecture) =>
+        lecture?.varkvektor,
+    )
+    .map((lecture) => {
+      const score =
+        scoreLecture({
+          lecture,
+          userVarkVector,
+          instructionalProfile,
+        });
+
+      return {
+        ...lecture,
+
+        _varkSimilarity:
+          score.varkSimilarity,
+
+        _instructionalCompatibility:
+          score
+            .instructionalCompatibility,
+
+        _hybridScore:
+          score.hybridScore,
+
+        _hybridPercentage:
+          score.hybridPercentage,
+      };
+    })
+    .sort((a, b) => {
+      if (
+        b._hybridScore !==
+        a._hybridScore
+      ) {
+        return (
+          b._hybridScore -
+          a._hybridScore
+        );
+      }
 
       return (
-        String(lecture.cognitiveLevel) ===
-        expectedLevel
+        a._sourceIndex -
+        b._sourceIndex
+      );
+    })
+    .slice(
+      0,
+      RECOMMENDATION_LIMIT,
+    )
+    .map(
+      (
+        lecture,
+        index,
+      ) => ({
+        ...lecture,
+        rank: index + 1,
+      }),
+    );
+};
+
+const activityMapFrom = (
+  activities = [],
+) => {
+  const activityMap =
+    new Map();
+
+  for (
+    const activity of
+      activities || []
+  ) {
+    if (
+      !activity?.lectureId
+    ) {
+      continue;
+    }
+
+    const lectureId =
+      String(
+        activity.lectureId,
+      );
+
+    const existing =
+      activityMap.get(
+        lectureId,
+      );
+
+    if (!existing) {
+      activityMap.set(
+        lectureId,
+        activity,
+      );
+
+      continue;
+    }
+
+    activityMap.set(
+      lectureId,
+      {
+        ...existing,
+
+        accessCount:
+          Number(
+            existing
+              .accessCount ||
+              0,
+          ) +
+          Number(
+            activity
+              .accessCount ||
+              0,
+          ),
+
+        totalDuration:
+          Number(
+            existing
+              .totalDuration ||
+              0,
+          ) +
+          Number(
+            activity
+              .totalDuration ||
+              0,
+          ),
+
+        createdAt:
+          new Date(
+            existing.createdAt ||
+              8640000000000000,
+          ) <=
+          new Date(
+            activity.createdAt ||
+              8640000000000000,
+          )
+            ? existing.createdAt
+            : activity.createdAt,
+      },
+    );
+  }
+
+  return activityMap;
+};
+
+const interactionMetrics = (
+  lecture,
+  activity,
+) => {
+  const expectedDurSec =
+    Math.max(
+      Number(
+        lecture
+          ?.lectureDuration ||
+          0,
+      ) * 60,
+      0,
+    );
+
+  const rawActualDurSec =
+    Math.max(
+      Number(
+        activity
+          ?.totalDuration ||
+          0,
+      ),
+      0,
+    );
+
+  const effectiveActualDurSec =
+    expectedDurSec > 0
+      ? Math.min(
+          rawActualDurSec,
+          expectedDurSec,
+        )
+      : 0;
+
+  const ratio =
+    expectedDurSec > 0
+      ? (
+          effectiveActualDurSec /
+          expectedDurSec
+        )
+      : null;
+
+  return {
+    expectedDurSec,
+    rawActualDurSec,
+    effectiveActualDurSec,
+    ratio,
+
+    accessCount:
+      Math.max(
+        Number(
+          activity
+            ?.accessCount ||
+            0,
+        ),
+        0,
+      ),
+
+    firstAccessAt:
+      activity?.createdAt ||
+      null,
+  };
+};
+
+const hasActualAccess = (
+  activity,
+) =>
+  (
+    Math.max(
+      Number(
+        activity
+          ?.accessCount ||
+          0,
+      ),
+      0,
+    ) > 0
+  ) ||
+  (
+    Math.max(
+      Number(
+        activity
+          ?.totalDuration ||
+          0,
+      ),
+      0,
+    ) > 0
+  );
+
+const makeTargetDetail = ({
+  lecture,
+  chapter,
+  role,
+  completedSet,
+  activityMap,
+  recommendation = null,
+}) => {
+  const lectureId =
+    String(
+      lecture.lectureId,
+    );
+
+  const activity =
+    activityMap.get(
+      lectureId,
+    );
+
+  const metrics =
+    interactionMetrics(
+      lecture,
+      activity,
+    );
+
+  return {
+    chapterId:
+      chapter.chapterId,
+
+    chapterOrder:
+      Number(
+        chapter.chapterOrder ||
+          0,
+      ),
+
+    lectureId,
+
+    lectureTitle:
+      lecture.lectureTitle ||
+      lectureId,
+
+    role,
+
+    selesai:
+      completedSet.has(
+        lectureId,
+      )
+        ? 1
+        : 0,
+
+    accessCount:
+      metrics.accessCount,
+
+    rawActualDurSec:
+      metrics.rawActualDurSec,
+
+    actualDurSec:
+      metrics
+        .effectiveActualDurSec,
+
+    expectedDurSec:
+      metrics.expectedDurSec,
+
+    interactionRatio:
+      metrics.ratio,
+
+    interactionPercent:
+      metrics.ratio == null
+        ? null
+        : Number(
+            (
+              metrics.ratio *
+              100
+            ).toFixed(1),
+          ),
+
+    firstAccessAt:
+      metrics.firstAccessAt,
+
+    recommendationRank:
+      recommendation?.rank ??
+      null,
+
+    hybridScore:
+      recommendation
+        ?._hybridScore ??
+      null,
+
+    hybridPercentage:
+      recommendation
+        ?._hybridPercentage ??
+      null,
+  };
+};
+
+/*
+ * G1:
+ * hanya objek yang benar-benar pernah
+ * diakses yang dapat menjadi pilihan.
+ *
+ * Empat yang pertama berdasarkan
+ * LectureActivity.createdAt menjadi
+ * target SES.
+ */
+const chooseG1AdditionalTargets = ({
+  chapter,
+  mainLectures,
+  activityMap,
+}) => {
+  const candidates =
+    getUniqueNonMainLectures(
+      chapter,
+      mainLectures,
+    );
+
+  return candidates
+    .map((lecture) => {
+      const lectureId =
+        String(
+          lecture.lectureId,
+        );
+
+      const activity =
+        activityMap.get(
+          lectureId,
+        );
+
+      return {
+        ...lecture,
+        _activity:
+          activity,
+
+        _firstAccessAt:
+          activity?.createdAt ||
+          null,
+      };
+    })
+    .filter(
+      (lecture) =>
+        hasActualAccess(
+          lecture._activity,
+        ),
+    )
+    .sort((a, b) => {
+      const timeA =
+        a._firstAccessAt
+          ? new Date(
+              a._firstAccessAt,
+            ).getTime()
+          : Number
+              .POSITIVE_INFINITY;
+
+      const timeB =
+        b._firstAccessAt
+          ? new Date(
+              b._firstAccessAt,
+            ).getTime()
+          : Number
+              .POSITIVE_INFINITY;
+
+      if (
+        timeA !== timeB
+      ) {
+        return timeA - timeB;
+      }
+
+      const orderDiff =
+        numberOrInfinity(
+          a.lectureOrder,
+        ) -
+        numberOrInfinity(
+          b.lectureOrder,
+        );
+
+      if (
+        orderDiff !== 0
+      ) {
+        return orderDiff;
+      }
+
+      return (
+        a._sourceIndex -
+        b._sourceIndex
+      );
+    })
+    .slice(
+      0,
+      RECOMMENDATION_LIMIT,
+    );
+};
+
+const isExperimentChapter = (
+  chapter,
+) =>
+  Boolean(
+    MAIN_LECTURE_IDS_BY_CHAPTER[
+      chapter?.chapterId
+    ],
+  );
+
+const sortExplorationTop4 = (
+  details,
+) =>
+  [
+    ...details,
+  ]
+    .sort((a, b) => {
+      const interactionA =
+        Number.isFinite(
+          Number(
+            a.interactionPercent,
+          ),
+        )
+          ? Number(
+              a.interactionPercent,
+            )
+          : -1;
+
+      const interactionB =
+        Number.isFinite(
+          Number(
+            b.interactionPercent,
+          ),
+        )
+          ? Number(
+              b.interactionPercent,
+            )
+          : -1;
+
+      if (
+        interactionB !==
+        interactionA
+      ) {
+        return (
+          interactionB -
+          interactionA
+        );
+      }
+
+      if (
+        b.effectiveDurationSec !==
+        a.effectiveDurationSec
+      ) {
+        return (
+          b.effectiveDurationSec -
+          a.effectiveDurationSec
+        );
+      }
+
+      if (
+        b.accessCount !==
+        a.accessCount
+      ) {
+        return (
+          b.accessCount -
+          a.accessCount
+        );
+      }
+
+      return String(
+        a.lectureId,
+      ).localeCompare(
+        String(
+          b.lectureId,
+        ),
+      );
+    })
+    .slice(
+      0,
+      RECOMMENDATION_LIMIT,
+    );
+
+export const calculateTargetEngagement = ({
+  course,
+  kelas,
+  lectureCompleted = [],
+  userVarkVector = null,
+  mentalKepribadian,
+  activities = [],
+}) => {
+  const normalizedClass =
+    String(
+      kelas || "",
+    )
+      .trim()
+      .toUpperCase();
+
+  const completedSet =
+    new Set(
+      (
+        lectureCompleted ||
+        []
+      ).map(String),
+    );
+
+  const activityMap =
+    activityMapFrom(
+      activities,
+    );
+
+  let completionEarned = 0;
+  let completionPossible = 0;
+
+  let interactionEarned = 0;
+  let interactionPossible = 0;
+
+  const targetDetails = [];
+  const recommendationDetails = [];
+  const chapterDetails = [];
+
+  const allExperimentLectureIds =
+    new Set();
+
+  const targetLectureIds =
+    new Set();
+
+  const experimentLectureLookup =
+    new Map();
+
+  const chapters =
+    (
+      course
+        ?.courseContent ||
+      []
+    ).filter(
+      isExperimentChapter,
+    );
+
+  for (
+    const chapter of
+      chapters
+  ) {
+    const mainLectures =
+      getMainLectures(
+        chapter,
+      );
+
+    const g1NonMainLectures =
+      getUniqueNonMainLectures(
+        chapter,
+        mainLectures,
+      );
+
+    const allChapterLectures =
+      getChapterLecturesWithIndex(
+        chapter,
+      );
+
+    for (
+      const lecture of
+        allChapterLectures
+    ) {
+      if (
+        !lecture?.lectureId
+      ) {
+        continue;
+      }
+
+      const lectureId =
+        String(
+          lecture.lectureId,
+        );
+
+      allExperimentLectureIds
+        .add(
+          lectureId,
+        );
+
+      if (
+        !experimentLectureLookup
+          .has(
+            lectureId,
+          )
+      ) {
+        experimentLectureLookup
+          .set(
+            lectureId,
+            {
+              lecture,
+              chapter,
+            },
+          );
+      }
+    }
+
+    const mainDetails =
+      mainLectures.map(
+        (lecture) =>
+          makeTargetDetail({
+            lecture,
+            chapter,
+            role: "main",
+            completedSet,
+            activityMap,
+          }),
+      );
+
+    let additionalTargets = [];
+    let additionalQuota = 0;
+
+    if (
+      normalizedClass ===
+      "G2"
+    ) {
+      additionalTargets =
+        getG2Recommendations({
+          chapter,
+          mainLectures,
+          userVarkVector,
+          mentalKepribadian,
+        });
+
+      additionalQuota =
+        additionalTargets.length;
+    } else {
+      additionalTargets =
+        chooseG1AdditionalTargets({
+          chapter,
+          mainLectures,
+          activityMap,
+        });
+
+      additionalQuota =
+        Math.min(
+          RECOMMENDATION_LIMIT,
+          g1NonMainLectures.length,
+        );
+    }
+
+    const additionalDetails =
+      additionalTargets.map(
+        (lecture) => {
+          const detail =
+            makeTargetDetail({
+              lecture,
+              chapter,
+
+              role:
+                normalizedClass ===
+                "G2"
+                  ? "recommended"
+                  : "free-choice",
+
+              completedSet,
+              activityMap,
+
+              recommendation:
+                normalizedClass ===
+                "G2"
+                  ? lecture
+                  : null,
+            });
+
+          if (
+            normalizedClass ===
+            "G2"
+          ) {
+            recommendationDetails
+              .push(
+                detail,
+              );
+          }
+
+          return detail;
+        },
+      );
+
+    for (
+      const detail of [
+        ...mainDetails,
+        ...additionalDetails,
+      ]
+    ) {
+      targetDetails.push(
+        detail,
+      );
+
+      targetLectureIds.add(
+        detail.lectureId,
       );
     }
 
-    // V / A / R
-    const expectedGranularity = highMental
-      ? "macro"
-      : "micro";
+    const mainCompleted =
+      mainDetails.filter(
+        (detail) =>
+          detail.selesai,
+      ).length;
 
-    return (
-      String(
-        lecture.contentGranularity || ""
-      ).toLowerCase() === expectedGranularity
+    const additionalCompleted =
+      additionalDetails.filter(
+        (detail) =>
+          detail.selesai,
+      ).length;
+
+    completionEarned +=
+      mainCompleted +
+      additionalCompleted;
+
+    completionPossible +=
+      mainDetails.length +
+      additionalQuota;
+
+    /*
+     * Materi utama:
+     * denominator interaksi hanya jika
+     * lectureDuration valid.
+     */
+    for (
+      const detail of
+        mainDetails
+    ) {
+      if (
+        detail
+          .interactionRatio ==
+        null
+      ) {
+        continue;
+      }
+
+      interactionPossible += 1;
+
+      interactionEarned +=
+        detail.interactionRatio;
+    }
+
+    /*
+     * Kuota tambahan selalu menjadi
+     * denominator.
+     *
+     * G1:
+     * slot belum dipakai = 0.
+     *
+     * G2:
+     * rekomendasi belum diakses = 0.
+     */
+    interactionPossible +=
+      additionalQuota;
+
+    for (
+      const detail of
+        additionalDetails
+    ) {
+      interactionEarned +=
+        detail
+          .interactionRatio ??
+        0;
+    }
+
+    chapterDetails.push({
+      chapterId:
+        chapter.chapterId,
+
+      chapterOrder:
+        Number(
+          chapter.chapterOrder ||
+            0,
+        ),
+
+      mainPossible:
+        mainDetails.length,
+
+      mainEarned:
+        mainCompleted,
+
+      additionalType:
+        normalizedClass ===
+        "G2"
+          ? "hybrid-top-4"
+          : "free-choice-first-4",
+
+      additionalQuota,
+
+      additionalUsed:
+        additionalDetails.length,
+
+      additionalPossible:
+        additionalQuota,
+
+      additionalEarned:
+        additionalCompleted,
+
+      targetLectureIds: [
+        ...mainDetails,
+        ...additionalDetails,
+      ].map(
+        (detail) =>
+          detail.lectureId,
+      ),
+    });
+  }
+
+  /*
+   * ==========================
+   * EXPLORATION
+   * ==========================
+   */
+
+  const explorationDetails =
+    [];
+
+  for (
+    const [
+      lectureId,
+      activity,
+    ] of
+      activityMap.entries()
+  ) {
+    if (
+      !allExperimentLectureIds
+        .has(
+          lectureId,
+        )
+    ) {
+      continue;
+    }
+
+    if (
+      targetLectureIds.has(
+        lectureId,
+      )
+    ) {
+      continue;
+    }
+
+    if (
+      !hasActualAccess(
+        activity,
+      )
+    ) {
+      continue;
+    }
+
+    const lookup =
+      experimentLectureLookup
+        .get(
+          lectureId,
+        );
+
+    const lecture =
+      lookup?.lecture;
+
+    const chapter =
+      lookup?.chapter;
+
+    if (
+      !lecture ||
+      !chapter
+    ) {
+      continue;
+    }
+
+    const metrics =
+      interactionMetrics(
+        lecture,
+        activity,
+      );
+
+    explorationDetails.push({
+      chapterId:
+        chapter.chapterId,
+
+      chapterOrder:
+        Number(
+          chapter.chapterOrder ||
+            0,
+        ),
+
+      lectureId,
+
+      lectureTitle:
+        lecture.lectureTitle ||
+        lectureId,
+
+      accessCount:
+        metrics.accessCount,
+
+      rawDurationSec:
+        metrics.rawActualDurSec,
+
+      /*
+       * Durasi nyata untuk laporan.
+       */
+      durationSec:
+        metrics.rawActualDurSec,
+
+      /*
+       * Durasi capped untuk analitik
+       * engagement/adherence.
+       */
+      effectiveDurationSec:
+        metrics
+          .effectiveActualDurSec,
+
+      expectedDurSec:
+        metrics.expectedDurSec,
+
+      interactionRatio:
+        metrics.ratio,
+
+      interactionPercent:
+        metrics.ratio == null
+          ? null
+          : Number(
+              (
+                metrics.ratio *
+                100
+              ).toFixed(1),
+            ),
+
+      selesai:
+        completedSet.has(
+          lectureId,
+        )
+          ? 1
+          : 0,
+
+      firstAccessAt:
+        metrics.firstAccessAt,
+    });
+  }
+
+  const explorationInteractionDetails =
+    explorationDetails.filter(
+      (detail) =>
+        detail
+          .interactionRatio !=
+        null,
     );
-  });
+
+  const explorationInteractionEarned =
+    explorationInteractionDetails
+      .reduce(
+        (
+          sum,
+          detail,
+        ) =>
+          sum +
+          Number(
+            detail
+              .interactionRatio ||
+              0,
+          ),
+        0,
+      );
+
+  const explorationInteractionPossible =
+    explorationInteractionDetails
+      .length;
+
+  const explorationAverageInteractionPercent =
+    explorationInteractionPossible >
+    0
+      ? (
+          explorationInteractionEarned /
+          explorationInteractionPossible
+        ) * 100
+      : 0;
+
+  const explorationEffectiveDurationSec =
+    explorationDetails.reduce(
+      (
+        sum,
+        detail,
+      ) =>
+        sum +
+        Number(
+          detail
+            .effectiveDurationSec ||
+            0,
+        ),
+      0,
+    );
+
+  /*
+   * ==========================
+   * RECOMMENDATION ADHERENCE
+   * hanya G2
+   * ==========================
+   */
+
+  const recommendedDurationSec =
+    normalizedClass === "G2"
+      ? recommendationDetails
+          .reduce(
+            (
+              sum,
+              detail,
+            ) =>
+              sum +
+              Number(
+                detail
+                  .actualDurSec ||
+                  0,
+              ),
+            0,
+          )
+      : 0;
+
+  const outsideRecommendationDurationSec =
+    normalizedClass === "G2"
+      ? explorationEffectiveDurationSec
+      : 0;
+
+  const totalAdditionalDurationSec =
+    recommendedDurationSec +
+    outsideRecommendationDurationSec;
+
+  const recommendationAdherence =
+    normalizedClass === "G2"
+      ? {
+          durationPercent:
+            totalAdditionalDurationSec >
+            0
+              ? Number(
+                  (
+                    (
+                      recommendedDurationSec /
+                      totalAdditionalDurationSec
+                    ) *
+                    100
+                  ).toFixed(1),
+                )
+              : null,
+
+          recommendedDurationSec,
+
+          outsideRecommendationDurationSec,
+
+          totalAdditionalDurationSec,
+        }
+      : null;
+
+  /*
+   * ==========================
+   * FINAL SES COMPONENTS
+   * ==========================
+   */
+
+  const interactionPercent =
+    interactionPossible > 0
+      ? (
+          interactionEarned /
+          interactionPossible
+        ) * 100
+      : 0;
+
+  const completionPercent =
+    completionPossible > 0
+      ? (
+          completionEarned /
+          completionPossible
+        ) * 100
+      : 0;
+
+  const targetDurationSec =
+    targetDetails.reduce(
+      (
+        sum,
+        detail,
+      ) =>
+        sum +
+        Number(
+          detail
+            .actualDurSec ||
+            0,
+        ),
+      0,
+    );
+
+  const targetExpectedDurationSec =
+    targetDetails.reduce(
+      (
+        sum,
+        detail,
+      ) =>
+        sum +
+        Number(
+          detail
+            .expectedDurSec ||
+            0,
+        ),
+      0,
+    );
+
+  return {
+    kelas:
+      normalizedClass,
+
+    interactionPercent:
+      Number(
+        interactionPercent
+          .toFixed(1),
+      ),
+
+    interactionEarned:
+      Number(
+        interactionEarned
+          .toFixed(4),
+      ),
+
+    interactionPossible,
+
+    completionPercent:
+      Number(
+        completionPercent
+          .toFixed(1),
+      ),
+
+    completionEarned,
+    completionPossible,
+
+    targetDurationSec,
+    targetExpectedDurationSec,
+
+    targetDetails,
+    recommendationDetails,
+    chapterDetails,
+
+    exploration: {
+      count:
+        explorationDetails.length,
+
+      accessCount:
+        explorationDetails
+          .reduce(
+            (
+              sum,
+              item,
+            ) =>
+              sum +
+              Number(
+                item
+                  .accessCount ||
+                  0,
+              ),
+            0,
+          ),
+
+      completedCount:
+        explorationDetails.filter(
+          (item) =>
+            item.selesai,
+        ).length,
+
+      durationSec:
+        explorationDetails
+          .reduce(
+            (
+              sum,
+              item,
+            ) =>
+              sum +
+              Number(
+                item
+                  .durationSec ||
+                  0,
+              ),
+            0,
+          ),
+
+      effectiveDurationSec:
+        explorationEffectiveDurationSec,
+
+      interactionEarned:
+        Number(
+          explorationInteractionEarned
+            .toFixed(4),
+        ),
+
+      interactionPossible:
+        explorationInteractionPossible,
+
+      averageInteractionPercent:
+        Number(
+          explorationAverageInteractionPercent
+            .toFixed(1),
+        ),
+
+      top4:
+        sortExplorationTop4(
+          explorationDetails,
+        ),
+
+      details:
+        explorationDetails,
+    },
+
+    recommendationAdherence,
+  };
 };
 
-
-/**
- * Feedback comparable G1 vs G2.
- *
- * Per chapter:
- * - Materi utama        : masing-masing 1 unit
- * - Modalitas dominan   : maksimal 1 unit
- * - Objek tambahan      : maksimal 4 unit
+/*
+ * Compatibility lama.
+ * SES baru memakai calculateTargetEngagement.
  */
 export const calculateFeedbackScore = ({
   course,
@@ -101,235 +1757,99 @@ export const calculateFeedbackScore = ({
   dominant,
   mentalKepribadian,
 }) => {
-  const dominantVark =
-    normalizeDominantVark(dominant);
+  const normalizedDominant =
+    normalizeVark(
+      dominant,
+    );
 
-  const completedSet = new Set(
-    (lectureCompleted || []).map(String)
-  );
+  const fallbackVector =
+    normalizedDominant
+      ? {
+          [
+            normalizedDominant
+          ]: 1,
+        }
+      : null;
 
-  let mainEarned = 0;
-  let mainPossible = 0;
-
-  let dominantEarned = 0;
-  let dominantPossible = 0;
-
-  let supplementaryEarned = 0;
-  let supplementaryPossible = 0;
-
-  const chapterDetails = [];
-
-  /*
-   * Hanya chapter eksperimen.
-   * Pada data Anda pertemuan 3-7 sudah memiliki mainLectureIds.
-   * Pertemuan 1-2 otomatis tidak ikut.
-   */
-  const scoredChapters = (
-    course?.courseContent || []
-  ).filter(
-    (chapter) =>
-      Array.isArray(chapter.mainLectureIds) &&
-      chapter.mainLectureIds.length > 0
-  );
-
-  for (const chapter of scoredChapters) {
-    const lectures =
-      chapter.chapterContent || [];
-
-    // ============================
-    // 1. MATERI UTAMA
-    // ============================
-
-    const mainIds = [
-      ...new Set(
-        (chapter.mainLectureIds || [])
-          .map(String)
-      ),
-    ];
-
-    const completedMainCount =
-      mainIds.filter((id) =>
-        completedSet.has(id)
-      ).length;
-
-    mainEarned += completedMainCount;
-    mainPossible += mainIds.length;
-
-
-    // ============================
-    // 2. BLOK MODALITAS DOMINAN
-    // ============================
-
-    const dominantLectures =
-      getDominantLectures({
-        chapter,
-        dominantVark,
-        mentalKepribadian,
-      });
-
-    const dominantIds = [
-      ...new Set(
-        dominantLectures.map((lecture) =>
-          String(lecture.lectureId)
-        )
-      ),
-    ];
-
-    const completedDominantCount =
-      dominantIds.filter((id) =>
-        completedSet.has(id)
-      ).length;
-
-    /*
-     * Satu blok modalitas per chapter
-     * maksimal bernilai 1.
-     *
-     * Contoh:
-     * V-micro = 4/8 = 0.5
-     * V-macro = 1/1 = 1
-     * K       = 1/1 = 1
-     */
-    let chapterDominantScore = 0;
-
-    if (dominantIds.length > 0) {
-      chapterDominantScore =
-        completedDominantCount /
-        dominantIds.length;
-    }
-
-    dominantEarned +=
-      chapterDominantScore;
-
-    // Selalu 1 unit per chapter eksperimen
-    dominantPossible += 1;
-
-
-    // ============================
-    // 3. OBJEK TAMBAHAN
-    // ============================
-
-    const excludedIds = new Set([
-      ...mainIds,
-      ...dominantIds,
-    ]);
-
-    const supplementaryIds = [
-      ...new Set(
-        lectures
-          .filter(
-            (lecture) =>
-              lecture?.lectureId &&
-              !excludedIds.has(
-                String(lecture.lectureId)
-              )
-          )
-          .map((lecture) =>
-            String(lecture.lectureId)
-          )
-      ),
-    ];
-
-    const completedSupplementaryCount =
-      supplementaryIds.filter((id) =>
-        completedSet.has(id)
-      ).length;
-
-    /*
-     * Baik G1 maupun G2:
-     * maksimal hanya 4 unit tambahan/chapter.
-     *
-     * G2 kemungkinan menyelesaikannya karena
-     * mendapat Top-4 recommendation.
-     *
-     * G1 bebas memilih sendiri.
-     */
-    const chapterSupplementaryScore =
-      Math.min(
-        completedSupplementaryCount,
-        4
-      );
-
-    supplementaryEarned +=
-      chapterSupplementaryScore;
-
-    supplementaryPossible += 4;
-
-
-    // ============================
-    // DEBUG
-    // ============================
-
-    chapterDetails.push({
-      chapterId: chapter.chapterId,
-
-      main: {
-        completed: completedMainCount,
-        possible: mainIds.length,
-      },
-
-      dominant: {
-        modality: dominantVark,
-        assignedIds: dominantIds,
-        completed:
-          completedDominantCount,
-        score: Number(
-          chapterDominantScore.toFixed(4)
-        ),
-        possible: 1,
-      },
-
-      supplementary: {
-        completed:
-          completedSupplementaryCount,
-        earned:
-          chapterSupplementaryScore,
-        possible: 4,
-      },
+  const result =
+    calculateTargetEngagement({
+      course,
+      kelas: "G1",
+      lectureCompleted,
+      userVarkVector:
+        fallbackVector,
+      mentalKepribadian,
+      activities: [],
     });
-  }
-
-
-  // ============================
-  // TOTAL
-  // ============================
-
-  const earned =
-    mainEarned +
-    dominantEarned +
-    supplementaryEarned;
-
-  const possible =
-    mainPossible +
-    dominantPossible +
-    supplementaryPossible;
-
-  const feedback =
-    possible > 0
-      ? (earned / possible) * 100
-      : 0;
 
   return {
-    feedback: Number(
-      feedback.toFixed(1)
-    ),
+    feedback:
+      result
+        .completionPercent,
 
-    earned: Number(
-      earned.toFixed(4)
-    ),
+    earned:
+      result
+        .completionEarned,
 
-    possible,
+    possible:
+      result
+        .completionPossible,
 
-    mainEarned,
-    mainPossible,
+    mainEarned:
+      result
+        .chapterDetails
+        .reduce(
+          (
+            sum,
+            chapter,
+          ) =>
+            sum +
+            chapter.mainEarned,
+          0,
+        ),
 
-    dominantEarned: Number(
-      dominantEarned.toFixed(4)
-    ),
-    dominantPossible,
+    mainPossible:
+      result
+        .chapterDetails
+        .reduce(
+          (
+            sum,
+            chapter,
+          ) =>
+            sum +
+            chapter.mainPossible,
+          0,
+        ),
 
-    supplementaryEarned,
-    supplementaryPossible,
+    supplementaryEarned:
+      result
+        .chapterDetails
+        .reduce(
+          (
+            sum,
+            chapter,
+          ) =>
+            sum +
+            chapter
+              .additionalEarned,
+          0,
+        ),
 
-    chapterDetails,
+    supplementaryPossible:
+      result
+        .chapterDetails
+        .reduce(
+          (
+            sum,
+            chapter,
+          ) =>
+            sum +
+            chapter
+              .additionalPossible,
+          0,
+        ),
+
+    chapterDetails:
+      result.chapterDetails,
   };
 };

@@ -11,7 +11,6 @@ export const AppContext = createContext()
 export const AppContextProvider = (props) => {
 
     const backendUrl = import.meta.env.VITE_BACKEND_URL
-
     const currency = import.meta.env.VITE_CURRENCY
     const navigate = useNavigate()
 
@@ -47,33 +46,60 @@ export const AppContextProvider = (props) => {
         try {
             const token = await getToken();
 
-            const { data } = await axios.get(backendUrl + '/api/user/data', { headers: { Authorization: `Bearer ${token}` } })
+            const { data } = await axios.get(
+                backendUrl + '/api/user/data',
+                { headers: { Authorization: `Bearer ${token}` } }
+            )
 
             if (data.success) {
                 setUserData(data.user)
                 setUserLoading(false)
+
                 const isVarkPage = window.location.pathname === '/vark-quiz'
                 const isNppPage = window.location.pathname === '/npp-input'
 
-                // Cek data keprajaan dulu
+                // ========================================
+                // 1. CEK NPP
+                // ========================================
                 const belumAdaNpp = !data.user?.npp
+
                 if (belumAdaNpp && !isNppPage && !isVarkPage) {
                     navigate('/npp-input')
                     return
                 }
 
-                // Cek VARK
+                // ========================================
+                // 2. CEK KELAS
+                // Hanya kelas G2 yang wajib mengisi VARK
+                // ========================================
+                const kelas = String(data.user?.kelas ?? '')
+                    .trim()
+                    .toUpperCase()
+
+                const isG2 = kelas === 'G2'
+
+                // ========================================
+                // 3. CEK VARK
+                // ========================================
                 const vark = data.user?.varkResult
-                const belumIsi = !vark || !vark.dominant || vark.dominant.length === 0
-                if (belumIsi && !isVarkPage && !isNppPage) {
+                const belumIsi =
+                    !vark ||
+                    !Array.isArray(vark.dominant) ||
+                    vark.dominant.length === 0
+
+                if (isG2 && belumIsi && !isVarkPage && !isNppPage) {
                     navigate('/vark-quiz')
                 }
+
+                // G1 tidak diarahkan ke VARK.
+                // Jika membuka /vark-quiz secara manual,
+                // VarkOnboardingRoute di App.jsx akan mengembalikan ke "/".
             } else {
                 setUserLoading(false)
                 toast.error(data.message)
             }
         } catch (error) {
-            setUserLoading(false) 
+            setUserLoading(false)
             toast.error(error.message)
         }
     }
@@ -120,7 +146,10 @@ export const AppContextProvider = (props) => {
         // setEnrolledCourses(dummyCourses)
         try {
             const token = await getToken();
-            const { data } = await axios.get(backendUrl + '/api/user/enrolled-courses', { headers: { Authorization: `Bearer ${token}` } })
+            const { data } = await axios.get(
+                backendUrl + '/api/user/enrolled-courses',
+                { headers: { Authorization: `Bearer ${token}` } }
+            )
 
             if (data.success) {
                 console.log("ENROLLED:", data.enrolledCourses.map(c => c._id || c.courseId || c.id))
@@ -131,15 +160,16 @@ export const AppContextProvider = (props) => {
         } catch (error) {
             toast.error(error.message)
         }
-
     }
 
     useEffect(() => {
         fetchAllCourses()
     }, [])
+
     // const logToken = async () => {
     //     console.log(await getToken());
     // }
+
     useEffect(() => {
         if (user) {
             fetchUserData()
@@ -150,7 +180,23 @@ export const AppContextProvider = (props) => {
     }, [user])
 
     const value = {
-        currency, allCourses, navigate, calculateRating, isEducator, setIsEducator, calculateChapterTime, calculateCourseDuration, calculateNoofLectures, enrolledCourses, fetUserEnrolledCourses, backendUrl, userData, setUserData, getToken, fetchAllCourses
+        currency,
+        allCourses,
+        navigate,
+        calculateRating,
+        isEducator,
+        setIsEducator,
+        calculateChapterTime,
+        calculateCourseDuration,
+        calculateNoofLectures,
+        enrolledCourses,
+        fetUserEnrolledCourses,
+        backendUrl,
+        userData,
+        setUserData,
+        userLoading,
+        getToken,
+        fetchAllCourses
     }
 
     return (

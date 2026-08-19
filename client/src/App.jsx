@@ -1,7 +1,6 @@
 import React, { useContext } from "react";
 import { Route, Routes, useMatch, Navigate } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
-
 import Home from "./pages/student/Home";
 import CourseList from "./pages/student/CourseList";
 import CourseDetail from "./pages/student/CourseDetail";
@@ -12,7 +11,6 @@ import VarkQuiz from "./pages/student/VarkQuiz";
 import NppInput from "./pages/student/NppInput";
 import TimelineBerita from "./pages/student/TimelineBerita";
 import QuizPage from "./pages/student/QuizPage";
-
 import Dashboard from "./pages/educator/Dashboard";
 import AddCourse from "./pages/educator/AddCourse";
 import MyCourses from "./pages/educator/MyCourses";
@@ -22,7 +20,6 @@ import AssignmentManager from "./pages/educator/AssignmentManager";
 
 import Navbar from "./components/student/Navbar";
 import { AppContext } from "./context/AppContext";
-
 import "quill/dist/quill.snow.css";
 import { ToastContainer } from "react-toastify";
 
@@ -59,25 +56,33 @@ const RequireOnboarding = ({ children }) => {
   // ========================================
   // 1. CEK NPP
   // ========================================
-
   if (!userData.npp) {
     return <Navigate to="/npp-input" replace />;
   }
 
   // ========================================
-  // 2. CEK APAKAH VARK SUDAH DIISI
+  // 2. CEK KELAS
+  // Hanya kelas G2 yang wajib mengisi VARK
   // ========================================
+  const kelas = String(userData?.kelas ?? "")
+    .trim()
+    .toUpperCase();
 
+  const isG2 = kelas === "G2";
+
+  // ========================================
+  // 3. CEK APAKAH VARK SUDAH DIISI
+  // ========================================
   const dominant = userData?.varkResult?.dominant;
-
   const hasCompletedVark = Array.isArray(dominant) && dominant.length > 0;
 
-  // Login pertama + belum isi VARK
-  if (!hasCompletedVark) {
+  // Hanya G2 yang diarahkan ke VARK
+  if (isG2 && !hasCompletedVark) {
     return <Navigate to="/vark-quiz" replace />;
   }
 
-  // VARK sudah selesai
+  // G1 langsung masuk aplikasi.
+  // G2 yang sudah VARK juga langsung masuk aplikasi.
   return children;
 };
 
@@ -107,12 +112,21 @@ const VarkOnboardingRoute = () => {
     return <Navigate to="/npp-input" replace />;
   }
 
-  const dominant = userData?.varkResult?.dominant;
+  // ========================================
+  // VARK HANYA UNTUK PRAJA KELAS G2
+  // ========================================
+  const kelas = String(userData?.kelas ?? "")
+    .trim()
+    .toUpperCase();
 
+  if (kelas !== "G2") {
+    return <Navigate to="/" replace />;
+  }
+
+  const dominant = userData?.varkResult?.dominant;
   const hasCompletedVark = Array.isArray(dominant) && dominant.length > 0;
 
-  // Sudah pernah VARK:
-  // jangan izinkan mengulang
+  // Sudah pernah VARK: jangan izinkan mengulang
   if (hasCompletedVark) {
     return <Navigate to="/" replace />;
   }
@@ -128,7 +142,6 @@ const App = () => {
       <ToastContainer />
 
       {!isEducatorRoute && <Navbar />}
-
       <Routes>
         <Route
           path="/"
@@ -149,7 +162,6 @@ const App = () => {
             </RequireOnboarding>
           }
         />
-
         <Route
           path="/course-list/:input"
           element={
@@ -167,7 +179,6 @@ const App = () => {
             </RequireOnboarding>
           }
         />
-
         <Route
           path="/my-enrollments"
           element={
@@ -185,7 +196,6 @@ const App = () => {
             </RequireOnboarding>
           }
         />
-
         <Route
           path="/quiz/:quizId"
           element={
@@ -201,7 +211,6 @@ const App = () => {
 
         <Route path="/educator" element={<Dashboard />}>
           <Route index element={<Navigate to="my-course" replace />} />
-
           <Route path="my-course" element={<MyCourses />} />
 
           <Route path="student-engagement" element={<StudentEngagement />} />

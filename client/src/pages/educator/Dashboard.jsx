@@ -28,7 +28,7 @@ const EducatorLayout = () => {
     <div className="min-h-screen bg-gray-50 flex">
 
       {/* SIDEBAR */}
-      <aside className="w-64 min-h-screen bg-white border-r border-gray-200 px-4 py-6">
+      <aside className="w-64 h-screen sticky top-0 self-start bg-white border-r border-gray-200 px-4 py-6 overflow-y-auto">
 
         <div className="mb-8 px-3">
           <h2 className="text-lg font-bold text-gray-800">

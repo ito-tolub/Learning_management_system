@@ -6,6 +6,7 @@ import { toast } from "react-toastify";
 const NppInput = () => {
   const { backendUrl, getToken, setUserData, navigate } =
     useContext(AppContext);
+
   const [npp, setNpp] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -14,7 +15,6 @@ const NppInput = () => {
 
     if (!npp.trim()) {
       toast.warn("NPP tidak boleh kosong!");
-
       return;
     }
 
@@ -25,11 +25,9 @@ const NppInput = () => {
 
       const { data } = await axios.post(
         backendUrl + "/api/user/save-npp",
-
         {
           npp: npp.trim(),
         },
-
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -38,14 +36,22 @@ const NppInput = () => {
       );
 
       if (data.success) {
-        // data.user sekarang sudah mempunyai:
-        // name = nama dari Keprajaan
-        // npp  = NPP resmi
+        // data.user sudah memuat data keprajaan,
+        // termasuk field kelas = G1 atau G2.
         setUserData(data.user);
-
         toast.success(data.message);
 
-        navigate("/vark-quiz");
+        const kelas = String(data.user?.kelas ?? "")
+          .trim()
+          .toUpperCase();
+
+        // Hanya praja kelas G2 yang masuk ke formulir VARK.
+        // Praja kelas G1 langsung masuk ke aplikasi.
+        if (kelas === "G2") {
+          navigate("/vark-quiz");
+        } else {
+          navigate("/");
+        }
       } else {
         toast.error(data.message);
       }
