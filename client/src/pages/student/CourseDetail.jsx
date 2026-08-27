@@ -1505,6 +1505,12 @@ const CourseDetail = ({ course, onBack = () => window.history.back() }) => {
           align-items: start;
         }
 
+        .cd-sidebar {
+        position: sticky;
+        top: 72px;
+        align-self: start;
+        } 
+
         .cd-back {
           border: none;
           background: transparent;
@@ -1910,6 +1916,10 @@ const CourseDetail = ({ course, onBack = () => window.history.back() }) => {
         @media (max-width: 760px) {
           .cd-hero-inner {
             padding-top: 40px;
+          }
+
+          .cd-sidebar {
+          position: static;
           }
 
           .cd-hero-info {

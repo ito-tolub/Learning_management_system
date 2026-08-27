@@ -301,7 +301,7 @@ export const getCourseQuizResults = async (req, res) => {
       _id: courseId,
       educator: educatorNip,
     })
-      .select("courseTitle enrolledStudents")
+      .select("courseTitle")
       .lean();
 
     if (!course) {
@@ -325,35 +325,25 @@ export const getCourseQuizResults = async (req, res) => {
 
     // ================================
     // FILTER PRAJA YANG TERDAFTAR
-    // DI COURSE
+    // DI COURSE — sumber kebenaran: User.enrolledCourses
+    // (bukan Course.enrolledStudents, yang bisa tidak sinkron)
     // ================================
 
-    if (
-      Array.isArray(course.enrolledStudents) &&
-      course.enrolledStudents.length > 0
-    ) {
-      const enrolledUsers = await User.find({
-        _id: {
-          $in: course.enrolledStudents,
-        },
-      })
-        .select("npp")
-        .lean();
+    const enrolledUsers = await User.find({
+      enrolledCourses: courseId,
+    })
+      .select("npp")
+      .lean();
 
-      const enrolledNpps = new Set(
-        enrolledUsers
-          .map((user) =>
-            String(user.npp || "").trim(),
-          )
-          .filter(Boolean),
-      );
+    const enrolledNpps = new Set(
+      enrolledUsers
+        .map((user) => String(user.npp || "").trim())
+        .filter(Boolean),
+    );
 
-      prajaList = prajaList.filter((praja) =>
-        enrolledNpps.has(
-          String(praja.npp || "").trim(),
-        ),
-      );
-    }
+    prajaList = prajaList.filter((praja) =>
+      enrolledNpps.has(String(praja.npp || "").trim()),
+    );
 
     // ================================
     // AMBIL KUIS PERTEMUAN 3 - 7
@@ -514,8 +504,10 @@ export const educatorDashboardData = async (req, res) => {
 
     const enrolledStudentsData = [];
     for (const course of courses) {
+      // sumber kebenaran: User.enrolledCourses (bukan Course.enrolledStudents,
+      // yang bisa tidak sinkron — lihat catatan di getCourseQuizResults)
       const students = await User.find(
-        { _id: { $in: course.enrolledStudents } },
+        { enrolledCourses: course._id },
         "name imageUrl",
       );
       students.forEach((student) => {

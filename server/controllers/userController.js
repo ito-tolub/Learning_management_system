@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import Course from "../models/Course.js";
 import mongoose from "mongoose";
 import { CourseProgress } from "../models/CourseProgress.js";
+import { LectureActivity } from "../models/LectureActivity.js";
 import Pegawai from "../models/pegawai.js";
 import { clerkClient } from "@clerk/express";
 
@@ -13,30 +14,113 @@ export const updateCourseProgress = async (req, res) => {
     const userId = req.auth.userId;
     const { courseId, lectureId } = req.body;
 
-    let progress = await CourseProgress.findOne({ userId, courseId });
+    let progress = await CourseProgress.findOne({
+      userId,
+      courseId,
+    });
+
+    // Apakah lecture sebelumnya sudah selesai?
+    const alreadyCompleted =
+      progress?.lectureCompleted?.includes(lectureId) || false;
+
+    /*
+     * Jika BELUM selesai dan user ingin menandai selesai,
+     * cek dulu apakah waktu bacanya sudah memenuhi.
+     */
+    if (!alreadyCompleted) {
+      const course = await Course.findById(courseId).lean();
+
+      if (!course) {
+        return res.json({
+          success: false,
+          message: "Course tidak ditemukan",
+        });
+      }
+
+      // Cari lecture berdasarkan lectureId
+      let lecture = null;
+
+      for (const chapter of course.courseContent || []) {
+        const foundLecture = (chapter.chapterContent || []).find(
+          (item) => item.lectureId === lectureId,
+        );
+
+        if (foundLecture) {
+          lecture = foundLecture;
+          break;
+        }
+      }
+
+      if (!lecture) {
+        return res.json({
+          success: false,
+          message: "Objek pembelajaran tidak ditemukan",
+        });
+      }
+
+      // lectureDuration tersimpan dalam MENIT
+      const fullDurationSeconds = Number(lecture.lectureDuration || 0) * 60;
+
+      const requiredSeconds = Math.ceil(fullDurationSeconds * 0.6);
+
+      // Ambil aktivitas baca praja
+      const activity = await LectureActivity.findOne({
+        userId,
+        courseId,
+        lectureId,
+      }).lean();
+
+      const actualSeconds = Number(activity?.totalDuration || 0);
+
+      // Tolak jika waktu baca belum memenuhi
+      if (actualSeconds < requiredSeconds) {
+        const remainingSeconds = requiredSeconds - actualSeconds;
+
+        return res.json({
+          success: false,
+          message: `Waktu membaca belum cukup. Sisa ${remainingSeconds} detik.`,
+          remainingSeconds,
+          actualSeconds,
+          requiredSeconds,
+        });
+      }
+    }
+
+    /*
+     * TOGGLE PROGRESS
+     */
 
     if (!progress) {
-      // Buat baru jika belum ada
       progress = new CourseProgress({
         userId,
         courseId,
         lectureCompleted: [lectureId],
       });
     } else {
-      // Toggle — jika sudah ada hapus, jika belum ada tambah
-      if (progress.lectureCompleted.includes(lectureId)) {
+      if (alreadyCompleted) {
+        // Batalkan selesai
         progress.lectureCompleted = progress.lectureCompleted.filter(
           (id) => id !== lectureId,
         );
       } else {
+        // Tandai selesai
         progress.lectureCompleted.push(lectureId);
       }
     }
 
     await progress.save();
-    res.json({ success: true, message: "Progress updated" });
+
+    res.json({
+      success: true,
+      message: alreadyCompleted
+        ? "Objek pembelajaran dibatalkan"
+        : "Objek pembelajaran selesai",
+    });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
@@ -97,22 +181,17 @@ export const saveNpp = async (req, res) => {
       });
     }
 
-    const nppInput =
-      String(npp).trim();
+    const nppInput = String(npp).trim();
 
     // =========================================
     // CARI DATA KEPRAJAAN
     // =========================================
 
-    const allKeprajaan =
-      await Keprajaan.find({}).lean();
+    const allKeprajaan = await Keprajaan.find({}).lean();
 
     const keprajaan =
       allKeprajaan.find((item) => {
-        const dbNpp =
-          String(
-            item.npp,
-          ).trim();
+        const dbNpp = String(item.npp).trim();
 
         // Perbandingan string langsung
         if (dbNpp === nppInput) {
@@ -121,27 +200,15 @@ export const saveNpp = async (req, res) => {
 
         // Kompatibilitas data lama
         // apabila NPP pernah tersimpan sebagai Number.
-        const dbNumber =
-          Number.parseFloat(dbNpp);
+        const dbNumber = Number.parseFloat(dbNpp);
 
-        const inputNumber =
-          Number.parseFloat(
-            nppInput,
-          );
+        const inputNumber = Number.parseFloat(nppInput);
 
-        if (
-          Number.isNaN(dbNumber) ||
-          Number.isNaN(
-            inputNumber,
-          )
-        ) {
+        if (Number.isNaN(dbNumber) || Number.isNaN(inputNumber)) {
           return false;
         }
 
-        return (
-          dbNumber.toFixed(4) ===
-          inputNumber.toFixed(4)
-        );
+        return dbNumber.toFixed(4) === inputNumber.toFixed(4);
       }) || null;
 
     // =========================================
@@ -151,8 +218,7 @@ export const saveNpp = async (req, res) => {
     if (!keprajaan) {
       return res.json({
         success: false,
-        message:
-          "NPP tidak ditemukan dalam data keprajaan",
+        message: "NPP tidak ditemukan dalam data keprajaan",
       });
     }
 
@@ -160,29 +226,24 @@ export const saveNpp = async (req, res) => {
     // NORMALISASI NPP DARI DATABASE
     // =========================================
 
-    const officialNpp =
-      String(
-        keprajaan.npp,
-      ).trim();
+    const officialNpp = String(keprajaan.npp).trim();
 
     // =========================================
     // CEK NPP SUDAH DIPAKAI USER LAIN
     // =========================================
 
-    const existingUser =
-      await User.findOne({
-        npp: officialNpp,
+    const existingUser = await User.findOne({
+      npp: officialNpp,
 
-        _id: {
-          $ne: userId,
-        },
-      }).lean();
+      _id: {
+        $ne: userId,
+      },
+    }).lean();
 
     if (existingUser) {
       return res.json({
         success: false,
-        message:
-          "NPP ini sudah terhubung dengan akun lain",
+        message: "NPP ini sudah terhubung dengan akun lain",
       });
     }
 
@@ -193,68 +254,53 @@ export const saveNpp = async (req, res) => {
     // keprajaan, bukan dari Clerk.
     // =========================================
 
-    const user =
-      await User.findByIdAndUpdate(
-        userId,
-        {
-          $set: {
-            npp:
-              officialNpp,
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          npp: officialNpp,
 
-            name:
-              keprajaan.nama,
-          },
+          name: keprajaan.nama,
         },
-        {
-          new: true,
-          runValidators: true,
-        },
-      ).lean();
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    ).lean();
 
     if (!user) {
       return res.json({
         success: false,
-        message:
-          "Data user tidak ditemukan",
+        message: "Data user tidak ditemukan",
       });
     }
 
     return res.json({
       success: true,
 
-      message:
-        `NPP berhasil dikonfirmasi. Selamat datang, ${keprajaan.nama}!`,
+      message: `NPP berhasil dikonfirmasi. Selamat datang, ${keprajaan.nama}!`,
 
       user: {
         ...user,
 
-        mentalKepribadian:
-          keprajaan.mentalKepribadian,
+        mentalKepribadian: keprajaan.mentalKepribadian,
 
-        samapta:
-          keprajaan.samapta,
+        samapta: keprajaan.samapta,
 
-        nilaiAkhir:
-          keprajaan.nilaiAkhir,
+        nilaiAkhir: keprajaan.nilaiAkhir,
 
-        namaKeprajaan:
-          keprajaan.nama,
+        namaKeprajaan: keprajaan.nama,
 
-        kelas:
-          keprajaan.kelas,
+        kelas: keprajaan.kelas,
       },
     });
   } catch (error) {
-    console.error(
-      "saveNpp error:",
-      error,
-    );
+    console.error("saveNpp error:", error);
 
     return res.json({
       success: false,
-      message:
-        error.message ||
-        "Gagal menyimpan NPP",
+      message: error.message || "Gagal menyimpan NPP",
     });
   }
 };
@@ -497,11 +543,28 @@ export const getUserCourseProgress = async (req, res) => {
   try {
     const userId = req.auth.userId;
     const { courseId } = req.body;
-    const progressData = await CourseProgress.findOne({ userId, courseId });
 
-    res.json({ success: true, progressData });
+    const progressData = await CourseProgress.findOne({
+      userId,
+      courseId,
+    });
+
+    // Ambil waktu baca seluruh lecture pada course ini
+    const activityData = await LectureActivity.find({
+      userId,
+      courseId,
+    }).lean();
+
+    res.json({
+      success: true,
+      progressData,
+      activityData,
+    });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    res.json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 
@@ -548,24 +611,22 @@ export const saveVarkResult = async (req, res) => {
     const userId = req.auth.userId;
     const { varkResult } = req.body;
 
-    const user =
-      await User.findByIdAndUpdate(
-        userId,
-        {
-          $set: {
-            varkResult,
-          },
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          varkResult,
         },
-        {
-          new: true,
-        },
-      ).lean();
+      },
+      {
+        new: true,
+      },
+    ).lean();
 
     if (!user) {
       return res.json({
         success: false,
-        message:
-          "Data user tidak ditemukan",
+        message: "Data user tidak ditemukan",
       });
     }
 
@@ -576,21 +637,14 @@ export const saveVarkResult = async (req, res) => {
     let keprajaan = null;
 
     if (user.npp) {
-      const allKeprajaan =
-        await Keprajaan.find({})
-          .lean();
+      const allKeprajaan = await Keprajaan.find({}).lean();
 
       keprajaan =
         allKeprajaan.find(
           (item) =>
-            String(item.npp) ===
-              String(user.npp) ||
-            Number.parseFloat(
-              item.npp,
-            ).toFixed(4) ===
-              Number.parseFloat(
-                user.npp,
-              ).toFixed(4),
+            String(item.npp) === String(user.npp) ||
+            Number.parseFloat(item.npp).toFixed(4) ===
+              Number.parseFloat(user.npp).toFixed(4),
         ) || null;
     }
 
@@ -604,38 +658,23 @@ export const saveVarkResult = async (req, res) => {
       user: {
         ...user,
 
-        kelas:
-          keprajaan?.kelas ??
-          null,
+        kelas: keprajaan?.kelas ?? null,
 
-        namaKeprajaan:
-          keprajaan?.nama ??
-          null,
+        namaKeprajaan: keprajaan?.nama ?? null,
 
-        mentalKepribadian:
-          keprajaan
-            ?.mentalKepribadian ??
-          null,
+        mentalKepribadian: keprajaan?.mentalKepribadian ?? null,
 
-        samapta:
-          keprajaan?.samapta ??
-          null,
+        samapta: keprajaan?.samapta ?? null,
 
-        nilaiAkhir:
-          keprajaan?.nilaiAkhir ??
-          null,
+        nilaiAkhir: keprajaan?.nilaiAkhir ?? null,
       },
     });
   } catch (error) {
-    console.error(
-      "saveVarkResult error:",
-      error,
-    );
+    console.error("saveVarkResult error:", error);
 
     return res.json({
       success: false,
-      message:
-        error.message,
+      message: error.message,
     });
   }
 };

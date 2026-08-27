@@ -220,7 +220,13 @@ const ICON_STYLE = {
   info: { bg: "#dbeafe", color: "#2563eb" },
 };
 
-const NotificationBell = ({ enrolledCourses = [] }) => {
+const NotificationBell = ({ enrolledCourses = [], userClass = "", }) => {
+  const normalizedUserClass = String(userClass || "")
+    .trim()
+    .toUpperCase();
+
+  const recommendationEnabled = normalizedUserClass === "G2";
+
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -241,45 +247,56 @@ const NotificationBell = ({ enrolledCourses = [] }) => {
 
   // Susun daftar notifikasi (statis + dinamis)
   const initialItems = useMemo(() => {
-    const list = [
-      {
-        id: "rec",
-        type: "spark",
-        title: "Rekomendasi baru tersedia",
-        body: "Objek pembelajaran sesuai gaya belajarmu sudah diperbarui.",
-        time: "Baru saja",
-        read: false,
-      },
-    ];
-    if (kelasHariIni.length > 0) {
-      const ringkas = kelasHariIni
-        .map(
-          (k) =>
-            `${k.title}${k.startTime ? ` (${k.startTime}${k.endTime ? `–${k.endTime}` : ""})` : ""}`,
-        )
-        .join(", ");
-      list.push({
-        id: "kelas-hari-ini",
-        type: "calendar",
-        title:
-          kelasHariIni.length === 1
-            ? "Kelas hari ini"
-            : `${kelasHariIni.length} kelas hari ini`,
-        body: ringkas,
-        time: "Hari ini",
-        read: false,
-      });
-    }
+  const list = [];
+
+  // Notifikasi rekomendasi hanya untuk Praja kelas G2
+  if (recommendationEnabled) {
     list.push({
-      id: "uts",
-      type: "info",
-      title: "Pengingat UTS",
-      body: "Ujian Tengah Semester dijadwalkan minggu ke-8.",
-      time: "Info",
-      read: true,
+      id: "rec",
+      type: "spark",
+      title: "Rekomendasi tersedia",
+      body: "Objek pembelajaran sesuai gaya belajarmu sudah bisa diakses.",
+      time: "Baru saja",
+      read: false,
     });
-    return list;
-  }, [kelasHariIni]);
+  }
+
+  if (kelasHariIni.length > 0) {
+    const ringkas = kelasHariIni
+      .map(
+        (k) =>
+          `${k.title}${
+            k.startTime
+              ? ` (${k.startTime}${k.endTime ? `–${k.endTime}` : ""})`
+              : ""
+          }`,
+      )
+      .join(", ");
+
+    list.push({
+      id: "kelas-hari-ini",
+      type: "calendar",
+      title:
+        kelasHariIni.length === 1
+          ? "Kelas hari ini"
+          : `${kelasHariIni.length} kelas hari ini`,
+      body: ringkas,
+      time: "Hari ini",
+      read: false,
+    });
+  }
+
+  list.push({
+    id: "uts",
+    type: "info",
+    title: "Pengingat UTS",
+    body: "Ujian Tengah Semester dijadwalkan minggu ke-8.",
+    time: "Info",
+    read: true,
+  });
+
+  return list;
+}, [kelasHariIni, recommendationEnabled]);
 
   const [items, setItems] = useState(initialItems);
   // sinkronkan jika jadwal berubah
@@ -641,7 +658,7 @@ const Navbar = () => {
                 </Link>
 
                 {/* Notifikasi */}
-                <NotificationBell enrolledCourses={enrolledCourses} />
+                <NotificationBell enrolledCourses={enrolledCourses} userClass={userData?.kelas}/>
 
                 {/* Profil: avatar Clerk + nama praja dari DB */}
                 <div className="flex items-center gap-2 pl-1 sm:pl-2">

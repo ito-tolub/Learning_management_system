@@ -25,6 +25,7 @@ const MAIN_LECTURE_IDS_BY_CHAPTER = {
 };
 
 const RECOMMENDATION_LIMIT = 4;
+const COMPLETION_READING_RATIO = 0.6;
 
 const MENTAL_REFERENCE_VALUE = 84;
 // Cosine similarity VARK antara profil pengguna dan objek pembelajaran
@@ -761,6 +762,8 @@ const getInstructionalCompatibility = (lecture, profile) => {
 };
 
 const Player = () => {
+  const [activityData, setActivityData] = useState([]);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const {
     enrolledCourses,
     calculateChapterTime,
@@ -796,12 +799,38 @@ const Player = () => {
   // Pencatatan durasi aktif pada objek pembelajaran
   const activeStartRef = useRef(null);
   const accumulatedActiveMsRef = useRef(0);
+  const isSavingDurationRef = useRef(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const lastOpenedLectureRef = useRef(null);
   const mainLectureSliderRef = useRef(null);
+  const playerSectionRef = useRef(null);
+  const [playerScrollRequest, setPlayerScrollRequest] = useState(0);
   const [assignments, setAssignments] = useState([]);
 
   const [loadingAssignments, setLoadingAssignments] = useState(true);
+
+  const handleOpenLecture = (lecture) => {
+    setPlayerData(lecture);
+    setPlayerScrollRequest((previous) => previous + 1);
+  };
+
+  useEffect(() => {
+    if (!playerData || !playerSectionRef.current) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      const playerElement = playerSectionRef.current;
+
+      if (!playerElement) return;
+
+      playerElement.focus({ preventScroll: true });
+      playerElement.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [playerData, playerScrollRequest]);
 
   const scrollMainLectures = (direction) => {
     const slider = mainLectureSliderRef.current;
@@ -870,14 +899,75 @@ const Player = () => {
     };
   }, []);
 
+  const getCurrentSessionSeconds = () => {
+    let totalMs = accumulatedActiveMsRef.current;
+
+    if (activeStartRef.current) {
+      totalMs += Date.now() - activeStartRef.current;
+    }
+
+    return Math.max(0, Math.floor(totalMs / 1000));
+  };
+
   const toggleLectureCompleted = async (lectureId) => {
     try {
       const token = await getToken();
       const wasCompleted = isCompleted(lectureId);
 
+      /*
+       * Lecture yang belum selesai hanya boleh diselesaikan setelah
+       * praja menghabiskan minimal 60% dari lectureDuration.
+       * Lecture yang sudah selesai tetap dapat dibatalkan.
+       */
+      if (!wasCompleted) {
+        const fullDurationSeconds =
+          Number(playerData?.lectureDuration || 0) * 60;
+        const requiredDurationSeconds = Math.ceil(
+          fullDurationSeconds * COMPLETION_READING_RATIO,
+        );
+
+        const savedDuration = getSavedReadingSeconds(lectureId);
+        const currentSessionDuration = getCurrentSessionSeconds();
+        const totalDuration = savedDuration + currentSessionDuration;
+
+        if (totalDuration < requiredDurationSeconds) {
+          const remaining = requiredDurationSeconds - totalDuration;
+
+          toast.error(
+            `Waktu membaca belum mencapai minimal 60%. Sisa ${remaining} detik.`,
+          );
+          return;
+        }
+
+        /*
+         * Simpan durasi sesi aktif terlebih dahulu agar backend menerima
+         * totalDuration terbaru sebelum progress ditandai selesai.
+         */
+        if (currentSessionDuration > 0) {
+          const activitySaved = await trackActivityDuration(
+            lectureId,
+            currentSessionDuration,
+          );
+
+          if (!activitySaved) {
+            toast.error("Gagal menyimpan waktu membaca");
+            return;
+          }
+
+          // Mulai segmen baru supaya durasi yang sama tidak dihitung dua kali.
+          accumulatedActiveMsRef.current = 0;
+          activeStartRef.current =
+            document.visibilityState === "visible" ? Date.now() : null;
+          setElapsedSeconds(0);
+        }
+      }
+
       const { data } = await axios.post(
         backendUrl + "/api/user/update-course-progress",
-        { courseId, lectureId },
+        {
+          courseId,
+          lectureId,
+        },
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -895,36 +985,73 @@ const Player = () => {
         toast.error(data.message);
       }
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.response?.data?.message || error.message);
     }
   };
 
-  const flushActivityDuration = async (lectureId) => {
-    if (!lectureId) return;
+  const flushActivityDuration = async (lectureId, resumeTimer = false) => {
+    if (!lectureId) return false;
+
+    // Jangan kirim dua request penyimpanan bersamaan
+    if (isSavingDurationRef.current) {
+      return false;
+    }
+
+    const now = Date.now();
 
     let totalMs = accumulatedActiveMsRef.current;
 
+    // Tambahkan waktu segmen yang sedang aktif
     if (activeStartRef.current) {
-      totalMs += Date.now() - activeStartRef.current;
+      totalMs += now - activeStartRef.current;
     }
-
-    // Reset SEBELUM request
-    // untuk mencegah double counting
-    accumulatedActiveMsRef.current = 0;
-    activeStartRef.current = null;
 
     const durationSeconds = Math.floor(totalMs / 1000);
 
-    if (durationSeconds <= 3) {
-      return;
+    // Simpan sisa milidetik yang belum genap 1 detik
+    const remainingMs = totalMs - durationSeconds * 1000;
+
+    /*
+     * Reset waktu yang akan dikirim.
+     *
+     * Jika resumeTimer = true (autosave),
+     * timer langsung dimulai kembali dari sekarang.
+     */
+    accumulatedActiveMsRef.current = remainingMs;
+
+    activeStartRef.current =
+      resumeTimer && document.visibilityState === "visible" ? now : null;
+
+    setElapsedSeconds(Math.floor(remainingMs / 1000));
+
+    if (durationSeconds <= 0) {
+      return true;
     }
 
-    await trackActivityDuration(lectureId, durationSeconds);
+    isSavingDurationRef.current = true;
 
-    console.log("Durasi di-flush:", {
-      lectureId,
-      durationSeconds,
-    });
+    try {
+      const success = await trackActivityDuration(lectureId, durationSeconds);
+
+      /*
+       * Kalau request gagal, masukkan kembali
+       * waktunya agar dicoba pada autosave berikutnya.
+       */
+      if (!success) {
+        accumulatedActiveMsRef.current += durationSeconds * 1000;
+
+        return false;
+      }
+
+      console.log("Durasi di-flush:", {
+        lectureId,
+        durationSeconds,
+      });
+
+      return true;
+    } finally {
+      isSavingDurationRef.current = false;
+    }
   };
 
   const trackLectureOpen = async (lectureId) => {
@@ -961,13 +1088,13 @@ const Player = () => {
 
   const trackActivityDuration = async (lectureId, duration) => {
     if (!lectureId || duration <= 0) {
-      return;
+      return false;
     }
 
     try {
       const token = await getToken();
 
-      await axios.post(
+      const { data } = await axios.post(
         backendUrl + "/api/user/track-activity",
         {
           courseId,
@@ -982,12 +1109,50 @@ const Player = () => {
         },
       );
 
+      if (!data.success) {
+        console.error("Backend gagal menyimpan durasi:", data.message);
+
+        return false;
+      }
+
+      // Update activityData lokal agar progress 60%
+      // langsung mengikuti hasil autosave.
+      setActivityData((previous) => {
+        const existing = previous.find((item) => item.lectureId === lectureId);
+
+        if (!existing) {
+          return [
+            ...previous,
+            {
+              lectureId,
+              totalDuration: duration,
+            },
+          ];
+        }
+
+        return previous.map((item) =>
+          item.lectureId === lectureId
+            ? {
+                ...item,
+                totalDuration: Number(item.totalDuration || 0) + duration,
+              }
+            : item,
+        );
+      });
+
       console.log("Durasi tersimpan:", {
         lectureId,
         duration,
       });
+
+      return true;
     } catch (error) {
-      console.log("Gagal menyimpan durasi:", error.message);
+      console.error(
+        "Gagal menyimpan durasi:",
+        error.response?.data || error.message,
+      );
+
+      return false;
     }
   };
 
@@ -1109,6 +1274,51 @@ const Player = () => {
     };
   }, [playerData?.lectureId]);
 
+  // ======================================================
+  // 3. AUTOSAVE DURASI SETIAP 30 DETIK
+  // ======================================================
+  useEffect(() => {
+    const lectureId = playerData?.lectureId;
+
+    if (!lectureId) return undefined;
+
+    const autoSaveInterval = window.setInterval(() => {
+      if (
+        document.visibilityState === "visible" &&
+        activeStartRef.current &&
+        !isSavingDurationRef.current
+      ) {
+        flushActivityDuration(
+          lectureId,
+          true, // save lalu timer lanjut
+        );
+      }
+    }, 30000);
+
+    return () => {
+      window.clearInterval(autoSaveInterval);
+    };
+  }, [playerData?.lectureId]);
+  // ======================================================
+  // 4. UPDATE TIMER UI SETIAP DETIK
+  // ======================================================
+  useEffect(() => {
+    if (!playerData?.lectureId) {
+      setElapsedSeconds(0);
+      return undefined;
+    }
+
+    const updateElapsedSeconds = () => {
+      setElapsedSeconds(getCurrentSessionSeconds());
+    };
+
+    updateElapsedSeconds();
+
+    const intervalId = window.setInterval(updateElapsedSeconds, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [playerData?.lectureId]);
+
   const getCourseProgress = async () => {
     try {
       const token = await getToken();
@@ -1120,6 +1330,7 @@ const Player = () => {
       console.log("getCourseProgress response:", data);
       if (data.success) {
         setProgressData(data.progressData);
+        setActivityData(data.activityData || []);
       } else {
         toast.error(data.message);
       }
@@ -1211,9 +1422,7 @@ const Player = () => {
             alt=""
             className="w-full aspect-video object-cover rounded-xl"
           />
-          <audio controls autoPlay className="w-full">
-            <source src={url} />
-          </audio>
+          <audio key={url} src={url} controls autoPlay className="w-full" />
         </div>
       );
     }
@@ -1272,15 +1481,9 @@ const Player = () => {
 
   const currentChapter = courseData.courseContent[selectedChapter];
 
-  const currentAssignments =
-  assignments.filter(
+  const currentAssignments = assignments.filter(
     (assignment) =>
-      Number(
-        assignment.pertemuan,
-      ) ===
-      Number(
-        currentChapter?.chapterOrder,
-      ),
+      Number(assignment.pertemuan) === Number(currentChapter?.chapterOrder),
   );
   // const dominantLabelText = dominantSet.map((c) => varkLabel[c]).join(" / "); // "Visual / Auditory / Read/Write"
   const lectures = currentChapter?.chapterContent || [];
@@ -1475,13 +1678,61 @@ const Player = () => {
     return playerData.lectureId === lecture.lectureId;
   };
 
+  const getSavedReadingSeconds = (lectureId) => {
+    const activity = activityData?.find((item) => item.lectureId === lectureId);
+
+    return Number(activity?.totalDuration || 0);
+  };
+
+  const fullReadingSeconds = playerData
+    ? Number(playerData.lectureDuration || 0) * 60
+    : 0;
+
+  // Tombol selesai aktif setelah minimal 60% durasi objek terpenuhi.
+  const requiredReadingSeconds = Math.ceil(
+    fullReadingSeconds * COMPLETION_READING_RATIO,
+  );
+
+  const savedReadingSeconds = playerData
+    ? getSavedReadingSeconds(playerData.lectureId)
+    : 0;
+
+  const totalReadingSeconds = savedReadingSeconds + elapsedSeconds;
+
+  const remainingReadingSeconds = Math.max(
+    0,
+    requiredReadingSeconds - totalReadingSeconds,
+  );
+
+  const canCompleteLecture =
+    !!playerData &&
+    (isCompleted(playerData.lectureId) ||
+      totalReadingSeconds >= requiredReadingSeconds);
+
+  const formatRemainingTime = (seconds) => {
+    const totalSeconds = Math.max(0, Math.ceil(seconds));
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+
+    if (minutes > 0 && secs > 0) {
+      return `${minutes} menit ${secs} detik`;
+    }
+
+    if (minutes > 0) {
+      return `${minutes} menit`;
+    }
+
+    return `${secs} detik`;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <div className="flex flex-col md:flex-row flex-grow">
         {/* ── Sidebar Kiri ── */}
         <aside
           aria-hidden={!isSidebarOpen}
-          className={`flex-shrink-0 overflow-hidden bg-white transition-[width,opacity] duration-300 ease-in-out ${
+          className={`flex-shrink-0 overflow-hidden bg-white transition-[width,opacity] duration-300 ease-in-out md:sticky md:top-14 md:self-start md:h-[calc(100vh-3.5rem)] ${
             isSidebarOpen
               ? "block w-full border-r border-gray-200 opacity-100 shadow-sm md:w-72"
               : "hidden w-0 border-r-0 opacity-0 md:block md:w-0 md:pointer-events-none"
@@ -1626,46 +1877,78 @@ const Player = () => {
 
           {/* Player */}
           {playerData && (
-            <div className="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div
+              ref={playerSectionRef}
+              tabIndex={-1}
+              className="scroll-mt-20 mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden outline-none"
+            >
               <div className="p-1">{renderPlayer()}</div>
+
               <div className="flex justify-between items-center px-4 py-3 border-t border-gray-100">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">
                     {varkEmoji[normalizeVark(playerData.tags)] || "📚"}
                   </span>
+
                   <div>
                     <p className="font-semibold text-gray-800 text-sm">
                       {playerData.lectureTitle}
                     </p>
-                    <p className="text-xs text-gray-400">
-                      {"Objek Pembelajaran"}
-                    </p>
+                    <p className="text-xs text-gray-400">Objek Pembelajaran</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => toggleLectureCompleted(playerData.lectureId)}
-                  title={
-                    isCompleted(playerData.lectureId)
-                      ? "Klik untuk membatalkan"
-                      : "Tandai sebagai selesai"
-                  }
-                  className={`group px-4 py-2 rounded-full text-sm font-medium transition-all select-none ${
-                    isCompleted(playerData.lectureId)
-                      ? "bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600 border border-green-200 hover:border-red-200"
-                      : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-                  }`}
-                >
-                  {isCompleted(playerData.lectureId) ? (
-                    <>
-                      <span className="group-hover:hidden">✓ Selesai</span>
-                      <span className="hidden group-hover:inline">
-                        ✕ Batalkan
-                      </span>
-                    </>
-                  ) : (
-                    "Tandai Selesai"
+
+                <div className="flex flex-col items-end gap-1.5">
+                  {/* Informasi waktu belajar minimal */}
+                  {!isCompleted(playerData.lectureId) && (
+                    <p
+                      className={`text-[11px] font-medium ${
+                        canCompleteLecture ? "text-green-600" : "text-amber-600"
+                      }`}
+                    >
+                      {canCompleteLecture
+                        ? "✓ Waktu baca minimal terpenuhi"
+                        : `Waktu baca minimal • Sisa ${formatRemainingTime(
+                            remainingReadingSeconds,
+                          )}`}
+                    </p>
                   )}
-                </button>
+
+                  <button
+                    onClick={() => toggleLectureCompleted(playerData.lectureId)}
+                    disabled={!canCompleteLecture}
+                    title={
+                      isCompleted(playerData.lectureId)
+                        ? "Klik untuk membatalkan"
+                        : canCompleteLecture
+                          ? "Tandai sebagai selesai"
+                          : `Waktu belajar minimal belum terpenuhi. Sisa ${formatRemainingTime(
+                              remainingReadingSeconds,
+                            )}`
+                    }
+                    className={`group px-4 py-2 rounded-full text-sm font-medium transition-all select-none ${
+                      isCompleted(playerData.lectureId)
+                        ? "bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600 border border-green-200 hover:border-red-200"
+                        : canCompleteLecture
+                          ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    {isCompleted(playerData.lectureId) ? (
+                      <>
+                        <span className="group-hover:hidden">✓ Selesai</span>
+
+                        <span className="hidden group-hover:inline">
+                          ✕ Batalkan
+                        </span>
+                      </>
+                    ) : canCompleteLecture ? (
+                      "Tandai Selesai"
+                    ) : (
+                      "Belum dapat diselesaikan"
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1723,7 +2006,7 @@ const Player = () => {
                   >
                     <LectureCard
                       lecture={lecture}
-                      onReview={setPlayerData}
+                      onReview={handleOpenLecture}
                       isActive={isSameLecture(lecture)}
                       isCompleted={isCompleted(lecture.lectureId)}
                       recommendationEnabled={false}
@@ -1771,7 +2054,7 @@ const Player = () => {
                   <LectureCard
                     key={`recommended-${lecture._sourceIndex}`}
                     lecture={lecture}
-                    onReview={setPlayerData}
+                    onReview={handleOpenLecture}
                     isActive={isSameLecture(lecture)}
                     isCompleted={isCompleted(lecture.lectureId)}
                     recommendationEnabled={recommendationEnabled}
@@ -1812,12 +2095,12 @@ const Player = () => {
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {displayedLectures.map((lecture) => (
                   <LectureCard
                     key={`lecture-${lecture._sourceIndex}`}
                     lecture={lecture}
-                    onReview={setPlayerData}
+                    onReview={handleOpenLecture}
                     isActive={isSameLecture(lecture)}
                     isCompleted={isCompleted(lecture.lectureId)}
                     recommendationEnabled={recommendationEnabled}
