@@ -61,7 +61,7 @@ export const updateCourseProgress = async (req, res) => {
       // lectureDuration tersimpan dalam MENIT
       const fullDurationSeconds = Number(lecture.lectureDuration || 0) * 60;
 
-      const requiredSeconds = Math.ceil(fullDurationSeconds * 0.6);
+      const requiredSeconds = Math.ceil(fullDurationSeconds * 0.5);
 
       // Ambil aktivitas baca praja
       const activity = await LectureActivity.findOne({

@@ -61,23 +61,13 @@ const RequireOnboarding = ({ children }) => {
   }
 
   // ========================================
-  // 2. CEK KELAS
-  // Hanya kelas G2 yang wajib mengisi VARK
-  // ========================================
-  const kelas = String(userData?.kelas ?? "")
-    .trim()
-    .toUpperCase();
-
-  const isG2 = kelas === "G2";
-
-  // ========================================
   // 3. CEK APAKAH VARK SUDAH DIISI
   // ========================================
   const dominant = userData?.varkResult?.dominant;
   const hasCompletedVark = Array.isArray(dominant) && dominant.length > 0;
 
   // Hanya G2 yang diarahkan ke VARK
-  if (isG2 && !hasCompletedVark) {
+  if (!hasCompletedVark) {
     return <Navigate to="/vark-quiz" replace />;
   }
 
@@ -88,7 +78,6 @@ const RequireOnboarding = ({ children }) => {
 
 const VarkOnboardingRoute = () => {
   const { isLoaded, isSignedIn, user } = useUser();
-
   const { userData, userLoading } = useContext(AppContext);
 
   if (!isLoaded || userLoading) {
@@ -112,21 +101,13 @@ const VarkOnboardingRoute = () => {
     return <Navigate to="/npp-input" replace />;
   }
 
-  // ========================================
-  // VARK HANYA UNTUK PRAJA KELAS G2
-  // ========================================
-  const kelas = String(userData?.kelas ?? "")
-    .trim()
-    .toUpperCase();
-
-  if (kelas !== "G2") {
-    return <Navigate to="/" replace />;
-  }
-
+  // Cek apakah user sudah pernah mengisi VARK
   const dominant = userData?.varkResult?.dominant;
-  const hasCompletedVark = Array.isArray(dominant) && dominant.length > 0;
 
-  // Sudah pernah VARK: jangan izinkan mengulang
+  const hasCompletedVark =
+    Array.isArray(dominant) && dominant.length > 0;
+
+  // Sudah pernah VARK → jangan izinkan mengulang
   if (hasCompletedVark) {
     return <Navigate to="/" replace />;
   }

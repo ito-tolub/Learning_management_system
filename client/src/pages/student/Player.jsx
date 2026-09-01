@@ -25,7 +25,7 @@ const MAIN_LECTURE_IDS_BY_CHAPTER = {
 };
 
 const RECOMMENDATION_LIMIT = 4;
-const COMPLETION_READING_RATIO = 0.6;
+const COMPLETION_READING_RATIO = 0.5;
 
 const MENTAL_REFERENCE_VALUE = 84;
 // Cosine similarity VARK antara profil pengguna dan objek pembelajaran
@@ -916,7 +916,7 @@ const Player = () => {
 
       /*
        * Lecture yang belum selesai hanya boleh diselesaikan setelah
-       * praja menghabiskan minimal 60% dari lectureDuration.
+       * praja menghabiskan minimal 50% dari lectureDuration.
        * Lecture yang sudah selesai tetap dapat dibatalkan.
        */
       if (!wasCompleted) {
@@ -934,7 +934,7 @@ const Player = () => {
           const remaining = requiredDurationSeconds - totalDuration;
 
           toast.error(
-            `Waktu membaca belum mencapai minimal 60%. Sisa ${remaining} detik.`,
+            `Waktu membaca belum mencapai minimal 50%. Sisa ${remaining} detik.`,
           );
           return;
         }
@@ -1115,7 +1115,7 @@ const Player = () => {
         return false;
       }
 
-      // Update activityData lokal agar progress 60%
+      // Update activityData lokal agar progress 50%
       // langsung mengikuti hasil autosave.
       setActivityData((previous) => {
         const existing = previous.find((item) => item.lectureId === lectureId);
