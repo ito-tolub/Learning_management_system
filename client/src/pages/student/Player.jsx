@@ -762,6 +762,7 @@ const getInstructionalCompatibility = (lecture, profile) => {
 };
 
 const Player = () => {
+  const [adaptiveVarkVector, setAdaptiveVarkVector] = useState(null);
   const [activityData, setActivityData] = useState([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const {
@@ -828,9 +829,28 @@ const Player = () => {
         block: "start",
       });
     }, 100);
-
     return () => window.clearTimeout(timeoutId);
   }, [playerData, playerScrollRequest]);
+
+  useEffect(() => {
+    const fetchAdaptiveVark = async () => {
+      try {
+        const token = await getToken();
+        const { data } = await axios.get(
+          backendUrl + "/api/user/adaptive-vark",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        if (data.success) {
+          setAdaptiveVarkVector(data.adaptiveScores);
+        }
+      } catch (error) {
+        console.error("Gagal memuat profil VARK adaptif:", error);
+      }
+    };
+    fetchAdaptiveVark();
+  }, []);
 
   const scrollMainLectures = (direction) => {
     const slider = mainLectureSliderRef.current;
@@ -846,7 +866,8 @@ const Player = () => {
   };
 
   // Profil VARK pengguna digunakan sebagai vektor, bukan dominant tunggal
-  const userVarkVector = userData?.varkResult?.scores || null;
+  const userVarkVector =
+    adaptiveVarkVector || userData?.varkResult?.scores || null;
   const userInstructionalProfile = getInstructionalProfile(
     userData?.mentalKepribadian,
   );
