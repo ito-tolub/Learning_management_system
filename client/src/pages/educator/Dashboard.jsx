@@ -17,6 +17,7 @@ const EducatorLayout = () => {
       label: "Student Engagement",
       path: "/educator/student-engagement",
     },
+    { label: "Ringkasan VARK", path: "/educator/vark-summary" },
   ];
 
   const handleLogout = () => {

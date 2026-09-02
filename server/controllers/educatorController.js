@@ -12,12 +12,12 @@ import bcrypt from "bcryptjs";
 import { calculateTargetEngagement } from "../utils/calculateFeedbackScore.js";
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
+import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
 
 export const verifyNipAndBecomeEducator = async (req, res) => {
   try {
     const educatorNip = req.educator.nip;
     const courses = await Course.find({ educator: educatorNip }).lean();
-
     const { nip } = req.body;
 
     if (!nip) {
@@ -307,8 +307,7 @@ export const getCourseQuizResults = async (req, res) => {
     if (!course) {
       return res.status(404).json({
         success: false,
-        message:
-          "Mata kuliah tidak ditemukan atau bukan milik dosen ini",
+        message: "Mata kuliah tidak ditemukan atau bukan milik dosen ini",
       });
     }
 
@@ -369,9 +368,7 @@ export const getCourseQuizResults = async (req, res) => {
         $in: [3, 4, 5, 6, 7],
       },
     })
-      .select(
-        "npp pertemuan score correctCount wrongCount submittedAt",
-      )
+      .select("npp pertemuan score correctCount wrongCount submittedAt")
       .sort({ submittedAt: 1 })
       .lean();
 
@@ -382,9 +379,7 @@ export const getCourseQuizResults = async (req, res) => {
     const attemptMap = new Map();
 
     for (const attempt of attempts) {
-      const npp = String(
-        attempt.npp || "",
-      ).trim();
+      const npp = String(attempt.npp || "").trim();
 
       if (!npp) continue;
 
@@ -405,12 +400,9 @@ export const getCourseQuizResults = async (req, res) => {
     // ================================
 
     const students = prajaList.map((praja) => {
-      const npp = String(
-        praja.npp || "",
-      ).trim();
+      const npp = String(praja.npp || "").trim();
 
-      const attemptsByMeeting =
-        attemptMap.get(npp) || {};
+      const attemptsByMeeting = attemptMap.get(npp) || {};
 
       const scores = {
         3: attemptsByMeeting[3]?.score ?? null,
@@ -421,22 +413,14 @@ export const getCourseQuizResults = async (req, res) => {
       };
 
       // hanya nilai yang sudah dikerjakan
-      const completedScores = Object.values(
-        scores,
-      ).filter(
-        (score) =>
-          typeof score === "number" &&
-          !Number.isNaN(score),
+      const completedScores = Object.values(scores).filter(
+        (score) => typeof score === "number" && !Number.isNaN(score),
       );
 
       const average =
         completedScores.length > 0
           ? Math.round(
-              (completedScores.reduce(
-                (total, score) =>
-                  total + score,
-                0,
-              ) /
+              (completedScores.reduce((total, score) => total + score, 0) /
                 completedScores.length) *
                 100,
             ) / 100
@@ -474,16 +458,11 @@ export const getCourseQuizResults = async (req, res) => {
       students,
     });
   } catch (error) {
-    console.error(
-      "Get Course Quiz Results Error:",
-      error,
-    );
+    console.error("Get Course Quiz Results Error:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        error.message ||
-        "Gagal mengambil hasil kuis",
+      message: error.message || "Gagal mengambil hasil kuis",
     });
   }
 };
@@ -700,82 +679,44 @@ export const trackLectureActivity = async (req, res) => {
 // ─── Get SES (Student Engagement Score) ──────────────────────────────────────
 export const getStudentEngagementScore = async (req, res) => {
   try {
-    const courses =
-      await Course.find({})
-        .lean();
+    const courses = await Course.find({}).lean();
 
-    const courseMap =
-      new Map(
-        courses.map(
-          (course) => [
-            course._id.toString(),
-            course,
-          ],
-        ),
-      );
+    const courseMap = new Map(
+      courses.map((course) => [course._id.toString(), course]),
+    );
 
-    const courseIdStrings =
-      courses.map(
-        (course) =>
-          course._id.toString(),
-      );
+    const courseIdStrings = courses.map((course) => course._id.toString());
 
-    const semuaPraja =
-      await Keprajaan.find(
-        {},
-        "npp nama mentalKepribadian kelas",
-      ).lean();
+    const semuaPraja = await Keprajaan.find(
+      {},
+      "npp nama mentalKepribadian kelas",
+    ).lean();
 
-    const users =
-      await User.find(
-        {
-          npp: {
-            $exists: true,
-          },
+    const users = await User.find(
+      {
+        npp: {
+          $exists: true,
         },
-        "name npp enrolledCourses _id varkResult",
-      ).lean();
+      },
+      "name npp enrolledCourses _id varkResult",
+    ).lean();
 
-    const userByNpp =
-      new Map(
-        users
-          .filter(
-            (user) =>
-              user.npp != null,
-          )
-          .map(
-            (user) => [
-              String(
-                user.npp,
-              ).trim(),
-
-              user,
-            ],
-          ),
-      );
+    const userByNpp = new Map(
+      users
+        .filter((user) => user.npp != null)
+        .map((user) => [String(user.npp).trim(), user]),
+    );
 
     const sesData = [];
 
-    for (
-      const praja of
-        semuaPraja
-    ) {
-      const nppStr =
-        String(
-          praja.npp || "",
-        ).trim();
+    for (const praja of semuaPraja) {
+      const nppStr = String(praja.npp || "").trim();
 
-      const user =
-        userByNpp.get(
-          nppStr,
-        );
+      const user = userByNpp.get(nppStr);
 
-      const normalizedClass =
-        String(
-          praja.kelas || "",
-        )
-          .trim()
-          .toUpperCase();
+      const normalizedClass = String(praja.kelas || "")
+        .trim()
+        .toUpperCase();
 
       let grandInteractionEarned = 0;
       let grandInteractionPossible = 0;
@@ -806,344 +747,157 @@ export const getStudentEngagementScore = async (req, res) => {
       let outsideRecommendationDurationSec = 0;
 
       if (user) {
-        const userCourseIds =
-          (
-            user.enrolledCourses ||
-            []
-          )
-            .map(
-              (id) =>
-                id.toString(),
-            )
-            .filter(
-              (id) =>
-                courseIdStrings
-                  .includes(id),
-            );
+        const userCourseIds = (user.enrolledCourses || [])
+          .map((id) => id.toString())
+          .filter((id) => courseIdStrings.includes(id));
 
-        for (
-          const courseId of
-            userCourseIds
-        ) {
-          const course =
-            courseMap.get(
-              courseId,
-            );
+        for (const courseId of userCourseIds) {
+          const course = courseMap.get(courseId);
 
           if (!course) {
             continue;
           }
 
-          const activities =
-            await LectureActivity
-              .find({
-                userId:
-                  user._id
-                    .toString(),
+          const activities = await LectureActivity.find({
+            userId: user._id.toString(),
 
-                courseId,
-              })
-              .lean();
+            courseId,
+          }).lean();
 
-          const progress =
-            await CourseProgress
-              .findOne({
-                userId:
-                  user._id,
+          const progress = await CourseProgress.findOne({
+            userId: user._id,
 
-                courseId,
-              })
-              .lean();
+            courseId,
+          }).lean();
 
-          const targetResult =
-            calculateTargetEngagement({
-              course,
+          const targetResult = calculateTargetEngagement({
+            course,
+            kelas: normalizedClass,
+            lectureCompleted: progress?.lectureCompleted || [],
+            userVarkVector: user?.varkResult?.scores || null,
+            mentalKepribadian: praja?.mentalKepribadian,
+            activities,
+          });
 
-              kelas:
-                normalizedClass,
-
-              lectureCompleted:
-                progress
-                  ?.lectureCompleted ||
-                [],
-
-              userVarkVector:
-                user
-                  ?.varkResult
-                  ?.scores ||
-                null,
-
-              mentalKepribadian:
-                praja
-                  ?.mentalKepribadian,
-
-              activities,
-            });
-
-          grandInteractionEarned +=
-            targetResult
-              .interactionEarned;
-
-          grandInteractionPossible +=
-            targetResult
-              .interactionPossible;
-
-          grandCompletionEarned +=
-            targetResult
-              .completionEarned;
-
-          grandCompletionPossible +=
-            targetResult
-              .completionPossible;
-
-          totalDurasiDetik +=
-            targetResult
-              .targetDurationSec;
-
-          targetExpectedDurasiDetik +=
-            targetResult
-              .targetExpectedDurationSec;
+          grandInteractionEarned += targetResult.interactionEarned;
+          grandInteractionPossible += targetResult.interactionPossible;
+          grandCompletionEarned += targetResult.completionEarned;
+          grandCompletionPossible += targetResult.completionPossible;
+          totalDurasiDetik += targetResult.targetDurationSec;
+          targetExpectedDurasiDetik += targetResult.targetExpectedDurationSec;
 
           detail.push(
-            ...targetResult
-              .targetDetails
-              .map(
-                (item) => ({
-                  ...item,
-
-                  courseId,
-
-                  courseTitle:
-                    course
-                      .courseTitle,
-                }),
-              ),
+            ...targetResult.targetDetails.map((item) => ({
+              ...item,
+              courseId,
+              courseTitle: course.courseTitle,
+            })),
           );
 
           chapterDetails.push(
-            ...targetResult
-              .chapterDetails
-              .map(
-                (item) => ({
-                  ...item,
-
-                  courseId,
-
-                  courseTitle:
-                    course
-                      .courseTitle,
-                }),
-              ),
+            ...targetResult.chapterDetails.map((item) => ({
+              ...item,
+              courseId,
+              courseTitle: course.courseTitle,
+            })),
           );
 
-          explorationCount +=
-            targetResult
-              .exploration
-              .count;
-
-          explorationAccessCount +=
-            targetResult
-              .exploration
-              .accessCount;
-
-          explorationCompletedCount +=
-            targetResult
-              .exploration
-              .completedCount;
-
-          explorationDurationSec +=
-            targetResult
-              .exploration
-              .durationSec;
-
+          explorationCount += targetResult.exploration.count;
+          explorationAccessCount += targetResult.exploration.accessCount;
+          explorationCompletedCount += targetResult.exploration.completedCount;
+          explorationDurationSec += targetResult.exploration.durationSec;
           explorationEffectiveDurationSec +=
-            targetResult
-              .exploration
-              .effectiveDurationSec;
+            targetResult.exploration.effectiveDurationSec;
 
           explorationInteractionEarned +=
-            targetResult
-              .exploration
-              .interactionEarned;
+            targetResult.exploration.interactionEarned;
 
           explorationInteractionPossible +=
-            targetResult
-              .exploration
-              .interactionPossible;
+            targetResult.exploration.interactionPossible;
 
           explorationDetails.push(
-            ...targetResult
-              .exploration
-              .details
-              .map(
-                (item) => ({
-                  ...item,
+            ...targetResult.exploration.details.map((item) => ({
+              ...item,
 
-                  courseId,
+              courseId,
 
-                  courseTitle:
-                    course
-                      .courseTitle,
-                }),
-              ),
+              courseTitle: course.courseTitle,
+            })),
           );
 
           if (
-            normalizedClass ===
-              "G2" &&
-            targetResult
-              .recommendationAdherence
+            normalizedClass === "G2" &&
+            targetResult.recommendationAdherence
           ) {
             recommendedDurationSec +=
-              targetResult
-                .recommendationAdherence
-                .recommendedDurationSec;
+              targetResult.recommendationAdherence.recommendedDurationSec;
 
             outsideRecommendationDurationSec +=
-              targetResult
-                .recommendationAdherence
+              targetResult.recommendationAdherence
                 .outsideRecommendationDurationSec;
           }
         }
       }
 
       const interaksi =
-        grandInteractionPossible >
-        0
+        grandInteractionPossible > 0
           ? Math.min(
-              (
-                grandInteractionEarned /
-                grandInteractionPossible
-              ) * 100,
+              (grandInteractionEarned / grandInteractionPossible) * 100,
               100,
             )
           : 0;
 
       const feedback =
-        grandCompletionPossible >
-        0
+        grandCompletionPossible > 0
           ? Math.min(
-              (
-                grandCompletionEarned /
-                grandCompletionPossible
-              ) * 100,
+              (grandCompletionEarned / grandCompletionPossible) * 100,
               100,
             )
           : 0;
 
       const explorationAverageInteraction =
-        explorationInteractionPossible >
-        0
-          ? (
-              explorationInteractionEarned /
-              explorationInteractionPossible
-            ) * 100
+        explorationInteractionPossible > 0
+          ? (explorationInteractionEarned / explorationInteractionPossible) *
+            100
           : 0;
 
-      const explorationTop4 =
-        [
-          ...explorationDetails,
-        ]
-          .sort(
-            (a, b) => {
-              const interactionA =
-                Number.isFinite(
-                  Number(
-                    a.interactionPercent,
-                  ),
-                )
-                  ? Number(
-                      a.interactionPercent,
-                    )
-                  : -1;
+      const explorationTop4 = [...explorationDetails]
+        .sort((a, b) => {
+          const interactionA = Number.isFinite(Number(a.interactionPercent))
+            ? Number(a.interactionPercent)
+            : -1;
 
-              const interactionB =
-                Number.isFinite(
-                  Number(
-                    b.interactionPercent,
-                  ),
-                )
-                  ? Number(
-                      b.interactionPercent,
-                    )
-                  : -1;
+          const interactionB = Number.isFinite(Number(b.interactionPercent))
+            ? Number(b.interactionPercent)
+            : -1;
 
-              if (
-                interactionB !==
-                interactionA
-              ) {
-                return (
-                  interactionB -
-                  interactionA
-                );
-              }
-
-              const durationA =
-                Number(
-                  a.effectiveDurationSec ||
-                    0,
-                );
-
-              const durationB =
-                Number(
-                  b.effectiveDurationSec ||
-                    0,
-                );
-
-              if (
-                durationB !==
-                durationA
-              ) {
-                return (
-                  durationB -
-                  durationA
-                );
-              }
-
-              return (
-                Number(
-                  b.accessCount ||
-                    0,
-                ) -
-                Number(
-                  a.accessCount ||
-                    0,
-                )
-              );
-            },
-          )
-          .slice(
-            0,
-            4,
-          );
+          if (interactionB !== interactionA) {
+            return interactionB - interactionA;
+          }
+          const durationA = Number(a.effectiveDurationSec || 0);
+          const durationB = Number(b.effectiveDurationSec || 0);
+          if (durationB !== durationA) {
+            return durationB - durationA;
+          }
+          return Number(b.accessCount || 0) - Number(a.accessCount || 0);
+        })
+        .slice(0, 4);
 
       const totalAdditionalDurationSec =
-        recommendedDurationSec +
-        outsideRecommendationDurationSec;
+        recommendedDurationSec + outsideRecommendationDurationSec;
 
       const recommendationAdherence =
-        normalizedClass ===
-        "G2"
+        normalizedClass === "G2"
           ? {
               durationPercent:
-                totalAdditionalDurationSec >
-                0
-                  ? (
-                      Math.round(
-                        (
-                          recommendedDurationSec /
-                          totalAdditionalDurationSec
-                        ) *
-                          1000,
-                      ) /
-                      10
-                    )
+                totalAdditionalDurationSec > 0
+                  ? Math.round(
+                      (recommendedDurationSec / totalAdditionalDurationSec) *
+                        1000,
+                    ) / 10
                   : null,
-
               recommendedDurationSec,
-
               outsideRecommendationDurationSec,
-
               totalAdditionalDurationSec,
             }
           : null;
@@ -1154,168 +908,239 @@ export const getStudentEngagementScore = async (req, res) => {
        * aktual dihubungkan.
        */
       const presensi = 100;
+      const ses = interaksi * 0.3 + feedback * 0.3 + presensi * 0.4;
 
-      const ses =
-        (
-          interaksi *
-          0.3
-        ) +
-        (
-          feedback *
-          0.3
-        ) +
-        (
-          presensi *
-          0.4
-        );
-
-      let kategori =
-        "Tidak Aktif";
-
-      let kategoriColor =
-        "red";
+      let kategori = "Tidak Aktif";
+      let kategoriColor = "red";
 
       if (ses >= 80) {
-        kategori =
-          "Sangat Aktif";
-
-        kategoriColor =
-          "green";
-      } else if (
-        ses >= 65
-      ) {
-        kategori =
-          "Aktif";
-
-        kategoriColor =
-          "yellow";
-      } else if (
-        ses >= 50
-      ) {
-        kategori =
-          "Kurang Aktif";
-
-        kategoriColor =
-          "orange";
+        kategori = "Sangat Aktif";
+        kategoriColor = "green";
+      } else if (ses >= 65) {
+        kategori = "Aktif";
+        kategoriColor = "yellow";
+      } else if (ses >= 50) {
+        kategori = "Kurang Aktif";
+        kategoriColor = "orange";
       }
 
       sesData.push({
-        userId:
-          user?._id ||
-          null,
-
-        nama:
-          praja.nama,
-
-        npp:
-          praja.npp,
-
-        kelas:
-          praja.kelas,
-
-        interaksi:
-          Math.round(
-            interaksi *
-              10,
-          ) / 10,
-
-        feedback:
-          Math.round(
-            feedback *
-              10,
-          ) / 10,
-
+        userId: user?._id || null,
+        nama: praja.nama,
+        npp: praja.npp,
+        kelas: praja.kelas,
+        interaksi: Math.round(interaksi * 10) / 10,
+        feedback: Math.round(feedback * 10) / 10,
         presensi,
-
-        ses:
-          Math.round(
-            ses *
-              100,
-          ) / 100,
-
-        interactionEarned:
-          Number(
-            grandInteractionEarned
-              .toFixed(4),
-          ),
-
-        interactionPossible:
-          grandInteractionPossible,
-
-        completionEarned:
-          grandCompletionEarned,
-
-        completionPossible:
-          grandCompletionPossible,
-
+        ses: Math.round(ses * 100) / 100,
+        interactionEarned: Number(grandInteractionEarned.toFixed(4)),
+        interactionPossible: grandInteractionPossible,
+        completionEarned: grandCompletionEarned,
+        completionPossible: grandCompletionPossible,
         totalDurasiDetik,
-
         targetExpectedDurasiDetik,
-
         kategori,
         kategoriColor,
-
         detail,
-
         chapterDetails,
-
         exploration: {
-          count:
-            explorationCount,
-
-          accessCount:
-            explorationAccessCount,
-
-          completedCount:
-            explorationCompletedCount,
-
-          durationSec:
-            explorationDurationSec,
-
-          effectiveDurationSec:
-            explorationEffectiveDurationSec,
-
+          count: explorationCount,
+          accessCount: explorationAccessCount,
+          completedCount: explorationCompletedCount,
+          durationSec: explorationDurationSec,
+          effectiveDurationSec: explorationEffectiveDurationSec,
           averageInteractionPercent:
-            (
-              Math.round(
-                explorationAverageInteraction *
-                  10,
-              ) /
-              10
-            ),
-
-          top4:
-            explorationTop4,
-
-          details:
-            explorationDetails,
+            Math.round(explorationAverageInteraction * 10) / 10,
+          top4: explorationTop4,
+          details: explorationDetails,
         },
-
         recommendationAdherence,
       });
     }
-
-    sesData.sort(
-      (a, b) =>
-        b.ses - a.ses,
-    );
-
+    sesData.sort((a, b) => b.ses - a.ses);
     return res.json({
       success: true,
       sesData,
     });
   } catch (error) {
-    console.error(
-      "Get Student Engagement Score Error:",
-      error,
+    console.error("Get Student Engagement Score Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const getVarkTagDurationSummary = async (req, res) => {
+  function getDominantFromScores(scores = {}) {
+    const TAGS = ["V", "A", "R", "K"];
+    const values = TAGS.map((t) => Number(scores[t]) || 0);
+    const max = Math.max(...values);
+    if (max <= 0) return [];
+    return TAGS.filter((t) => (Number(scores[t]) || 0) === max);
+  }
+  try {
+    // 1. Ambil semua course, bangun peta lectureId -> info tag
+    const courses = await Course.find({}).lean();
+
+    const lectureInfoMap = new Map(); // key: `${courseId}::${lectureId}`
+    for (const course of courses) {
+      for (const chapter of course.courseContent || []) {
+        for (const lecture of chapter.chapterContent || []) {
+          lectureInfoMap.set(`${course._id.toString()}::${lecture.lectureId}`, {
+            tag: lecture.tags || "UNTAGGED",
+            varkvektor: lecture.varkvektor || null,
+            lectureTitle: lecture.lectureTitle,
+            courseTitle: course.courseTitle,
+            chapterTitle: chapter.chapterTitle,
+          });
+        }
+      }
+    }
+
+    // 2. Ambil data praja + kelas + gabungkan dengan User (untuk userId Clerk + hasil kuisioner)
+    const semuaPraja = await Keprajaan.find({}, "npp nama kelas").lean();
+    const users = await User.find(
+      { npp: { $exists: true } },
+      "name npp _id varkResult",
+    ).lean();
+
+    const nppToPraja = new Map(
+      semuaPraja.map((p) => [String(p.npp).trim(), p]),
     );
 
-    return res.status(
-      500,
-    ).json({
-      success: false,
-      message:
-        error.message,
+    // userId (Clerk) -> info praja (nama, npp, kelas, skor kuisioner)
+    const prajaByUserId = new Map();
+    for (const user of users) {
+      if (user.npp == null) continue;
+      const praja = nppToPraja.get(String(user.npp).trim());
+      const quizScores = user.varkResult?.scores || { V: 0, A: 0, R: 0, K: 0 };
+
+      prajaByUserId.set(user._id, {
+        userId: user._id,
+        nama: praja?.nama || user.name || "Tidak diketahui",
+        npp: user.npp,
+        kelas: String(praja?.kelas || "").toUpperCase() || "UNKNOWN",
+        quizScores,
+        // dihitung ulang dari scores (bukan dari field `dominant` yang formatnya
+        // tidak konsisten di data lama - kadang string, kadang array)
+        quizDominant: getDominantFromScores(quizScores),
+      });
+    }
+
+    // 3. Ambil semua LectureActivity
+    const activities = await LectureActivity.find({}).lean();
+
+    const TAGS = ["V", "A", "R", "K", "UNTAGGED"];
+    const makeEmptyBucket = () =>
+      Object.fromEntries(
+        TAGS.map((t) => [
+          t,
+          {
+            tag: t,
+            totalMinutes: 0,
+            totalSeconds: 0,
+            lecturesAccessed: 0,
+            accessCount: 0,
+          },
+        ]),
+      );
+
+    const overall = makeEmptyBucket();
+    const byKelas = { G1: makeEmptyBucket(), G2: makeEmptyBucket() };
+    const perStudentBuckets = new Map();
+
+    for (const activity of activities) {
+      const info = lectureInfoMap.get(
+        `${activity.courseId}::${activity.lectureId}`,
+      );
+      const tag = info?.tag || "UNTAGGED";
+      const prajaInfo = prajaByUserId.get(activity.userId);
+      const kelas = prajaInfo?.kelas;
+
+      overall[tag].totalSeconds += activity.totalDuration || 0;
+      overall[tag].lecturesAccessed += 1;
+      overall[tag].accessCount += activity.accessCount || 0;
+
+      if (kelas === "G1" || kelas === "G2") {
+        byKelas[kelas][tag].totalSeconds += activity.totalDuration || 0;
+        byKelas[kelas][tag].lecturesAccessed += 1;
+        byKelas[kelas][tag].accessCount += activity.accessCount || 0;
+      }
+
+      if (prajaInfo) {
+        if (!perStudentBuckets.has(activity.userId)) {
+          perStudentBuckets.set(activity.userId, makeEmptyBucket());
+        }
+        const bucket = perStudentBuckets.get(activity.userId);
+        bucket[tag].totalSeconds += activity.totalDuration || 0;
+        bucket[tag].lecturesAccessed += 1;
+        bucket[tag].accessCount += activity.accessCount || 0;
+      }
+    }
+
+    const finalize = (bucket) =>
+      TAGS.map((t) => ({
+        tag: t,
+        totalMinutes: Math.round((bucket[t].totalSeconds / 60) * 10) / 10,
+        lecturesAccessed: bucket[t].lecturesAccessed,
+        accessCount: bucket[t].accessCount,
+      }));
+
+    // 4. Bentuk array per-siswa + hitung profil VARK adaptif (kuisioner 50% + waktu baca 50%)
+    const perStudent = Array.from(perStudentBuckets.entries())
+      .map(([userId, bucket]) => {
+        const info = prajaByUserId.get(userId);
+        const finalized = finalize(bucket);
+
+        const readingDominant = finalized
+          .filter((f) => f.tag !== "UNTAGGED")
+          .sort((a, b) => b.totalMinutes - a.totalMinutes)[0];
+
+        const readingMinutesByTag = Object.fromEntries(
+          finalized
+            .filter((f) => f.tag !== "UNTAGGED")
+            .map((f) => [f.tag, f.totalMinutes]),
+        );
+
+        const adaptive = calculateAdaptiveVark(
+          info?.quizScores,
+          readingMinutesByTag,
+        );
+
+        return {
+          userId,
+          nama: info?.nama || "Tidak diketahui",
+          npp: info?.npp || "-",
+          kelas: info?.kelas || "UNKNOWN",
+          tags: finalized,
+          readingDominantTag:
+            readingDominant && readingDominant.totalMinutes > 0
+              ? readingDominant.tag
+              : null,
+          totalMinutesAll:
+            Math.round(
+              finalized.reduce((sum, f) => sum + f.totalMinutes, 0) * 10,
+            ) / 10,
+          quizDominant: info?.quizDominant || [],
+          adaptiveScores: adaptive.scores, // persentase blended per tag
+          adaptiveDominant: adaptive.dominant, // bisa lebih dari 1 tag kalau seri
+          adaptiveSources: adaptive.sources, // breakdown persen kuisioner vs waktu baca (untuk transparansi)
+        };
+      })
+      .sort((a, b) => a.nama.localeCompare(b.nama));
+
+    return res.json({
+      success: true,
+      overall: finalize(overall),
+      byKelas: {
+        G1: finalize(byKelas.G1),
+        G2: finalize(byKelas.G2),
+      },
+      perStudent,
     });
+  } catch (error) {
+    console.error("getVarkTagDurationSummary error:", error);
+    return res.json({ success: false, message: error.message });
   }
 };

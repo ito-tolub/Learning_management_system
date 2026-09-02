@@ -16,6 +16,7 @@ import AddCourse from "./pages/educator/AddCourse";
 import MyCourses from "./pages/educator/MyCourses";
 import StudentsEnrolled from "./pages/educator/StudentsEnrolled";
 import StudentEngagement from "./pages/educator/StudentEngagement";
+import VarkSummary from "./pages/educator/VarkSummary";
 import AssignmentManager from "./pages/educator/AssignmentManager";
 
 import Navbar from "./components/student/Navbar";
@@ -70,7 +71,6 @@ const RequireOnboarding = ({ children }) => {
   if (!hasCompletedVark) {
     return <Navigate to="/vark-quiz" replace />;
   }
-
   // G1 langsung masuk aplikasi.
   // G2 yang sudah VARK juga langsung masuk aplikasi.
   return children;
@@ -83,19 +83,15 @@ const VarkOnboardingRoute = () => {
   if (!isLoaded || userLoading) {
     return <Loading />;
   }
-
   if (!isSignedIn) {
     return <Navigate to="/" replace />;
   }
-
   if (user?.publicMetadata?.role === "educator") {
     return <Navigate to="/educator" replace />;
   }
-
   if (!userData) {
     return <Loading />;
   }
-
   // NPP wajib tersedia dahulu
   if (!userData.npp) {
     return <Navigate to="/npp-input" replace />;
@@ -195,7 +191,7 @@ const App = () => {
           <Route path="my-course" element={<MyCourses />} />
 
           <Route path="student-engagement" element={<StudentEngagement />} />
-
+          <Route path="vark-summary" element={<VarkSummary />} />
           <Route path="assignments" element={<AssignmentManager />} />
 
           <Route path="student-enrolled" element={<StudentsEnrolled />} />

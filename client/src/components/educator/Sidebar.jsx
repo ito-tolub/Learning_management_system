@@ -12,6 +12,7 @@ const Sidebar = () => {
     { name: 'My Course', path: '/educator/my-course', icon: assets.my_course_icon },
     { name: 'Student Enrolled', path: '/educator/student-enrolled', icon: assets.person_tick_icon },
     { name: 'Student Engagement', path: '/educator/student-engagement', icon: assets.person_tick_icon },
+    { name: 'Ringkasan VARK', path: '/educator/vark-summary', icon: assets.person_tick_icon },
   ]
 
   return (

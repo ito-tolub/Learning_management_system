@@ -1,5 +1,5 @@
 import express from 'express'
-import { addCourse, getEducatorCourses, updateRoleToEducator, educatorDashboardData, getEnrolledStudentsData, getStudentEngagementScore,  trackLectureActivity, loginDosen, activateDosenPassword, getCourseQuizResults } from '../controllers/educatorController.js';
+import { addCourse, getEducatorCourses, updateRoleToEducator, educatorDashboardData, getEnrolledStudentsData, getStudentEngagementScore,  trackLectureActivity, loginDosen, activateDosenPassword, getCourseQuizResults, getVarkTagDurationSummary } from '../controllers/educatorController.js';
 import upload from '../configs/multer.js';
 import { protectDosen, protectEducator } from '../middlewares/authMiddleware.js';
 import { clerkMiddleware, requireAuth } from '@clerk/express';
@@ -18,6 +18,7 @@ educatorRouter.post('/add-course', upload.single('image'), protectEducator, addC
 educatorRouter.get('/courses', protectDosen, getEducatorCourses)
 educatorRouter.get('/dashboard', protectDosen, educatorDashboardData)
 educatorRouter.get('/enrolled-students', protectDosen, getEnrolledStudentsData)
+educatorRouter.get('/vark-summary', protectDosen, getVarkTagDurationSummary)
  
 // educatorRouter.post('/track-activity', requireAuth(), trackLectureActivity) 
 
