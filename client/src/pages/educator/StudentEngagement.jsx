@@ -217,6 +217,27 @@ const StudentEngagement = () => {
     G2: sesData.filter((s) => s.kelas?.toUpperCase() === "G2").length,
   };
 
+    const avgPct = (list, key) => {
+    if (!list.length) return 0;
+
+    const total = list.reduce((sum, s) => sum + Number(s[key] || 0), 0);
+
+    return Math.round((total / list.length) * 10) / 10;
+  };
+
+  const kelasSummary = ["G1", "G2"].reduce((acc, kelas) => {
+    const list = sesData.filter((s) => s.kelas?.toUpperCase() === kelas);
+
+    acc[kelas] = {
+      interaksi: avgPct(list, "interaksi"),
+      penyelesaian: avgPct(list, "feedback"),
+      presensi: avgPct(list, "presensi"),
+      ses: avgPct(list, "ses"),
+    };
+
+    return acc;
+  }, {});
+
   const handleKelasChange = (kelas) => {
     setSelectedKelas(kelas);
 
@@ -371,6 +392,61 @@ const StudentEngagement = () => {
       </div>
 
       {/* RINGKASAN */}
+            {/* RINGKASAN PERSENTASE PER KELAS */}
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        {["G1", "G2"].map((kelas) => (
+          <div
+            key={kelas}
+            className="bg-white rounded-xl border border-gray-100 shadow-sm p-4"
+          >
+            <p className="text-sm font-semibold text-gray-700 mb-3">
+              Kelas {kelas}{" "}
+              <span className="text-gray-400 font-normal">
+                ({jumlahPerKelas[kelas]} praja)
+              </span>
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>Interaksi</span>
+                  <span>{kelasSummary[kelas].interaksi}%</span>
+                </div>
+                <PctBar value={kelasSummary[kelas].interaksi} />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>Penyelesaian Materi</span>
+                  <span>{kelasSummary[kelas].penyelesaian}%</span>
+                </div>
+                <PctBar value={kelasSummary[kelas].penyelesaian} />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>Presensi</span>
+                  <span>{kelasSummary[kelas].presensi}%</span>
+                </div>
+                <PctBar value={kelasSummary[kelas].presensi} />
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span className="font-medium text-gray-700">
+                    Total Engagement Score (SES)
+                  </span>
+                  <span className={`font-semibold ${sesColor(kelasSummary[kelas].ses)}`}>
+                    {kelasSummary[kelas].ses}%
+                  </span>
+                </div>
+                <PctBar value={kelasSummary[kelas].ses} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           {

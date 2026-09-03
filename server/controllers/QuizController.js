@@ -86,11 +86,13 @@ const checkQuizPrerequisites = async ({ quiz, userId }) => {
   ];
 
   const completedNonMain = nonMainIds.filter(
-    (id) => completedSet.has(id),
-  );
+  (id) => completedSet.has(id),
+);
 
-  const nonMainCompleted =
-    completedNonMain.length >= 1;
+const MIN_NON_MAIN_REQUIRED = 6;
+
+const nonMainCompleted =
+  completedNonMain.length >= MIN_NON_MAIN_REQUIRED;
 
   // ================================
   // KUIS SEBELUMNYA
@@ -137,7 +139,7 @@ const checkQuizPrerequisites = async ({ quiz, userId }) => {
 
   if (!nonMainCompleted) {
     reasons.push(
-      "Selesaikan minimal 1 objek pembelajaran non-utama",
+      `Selesaikan minimal ${MIN_NON_MAIN_REQUIRED} objek pembelajaran non-utama (${completedNonMain.length}/${MIN_NON_MAIN_REQUIRED})`,
     );
   }
 
