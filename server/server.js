@@ -5,7 +5,7 @@ import express from 'express'
 import cors from 'cors'
 import 'dotenv/config'
 import connectDB from './configs/mongodb.js'
-import { clerkWebhooks, stripeWebhooks } from './controllers/webhooks.js'
+import { clerkWebhooks } from './controllers/webhooks.js'
 import educatorRouter from './routes/educatorRouter.js'
 import { clerkMiddleware } from '@clerk/express'
 import connectCloudinary from './configs/cloudinary.js'
@@ -23,12 +23,11 @@ await connectCloudinary()
 
 app.use(cors())
 
-// 🔥 STRIPE WEBHOOK HARUS PALING ATAS & TANPA MIDDLEWARE LAIN
-app.post(
-    '/stripe',
-    express.raw({ type: 'application/json' }),
-    stripeWebhooks
-  );
+// app.post(
+//     '/stripe',
+//     express.raw({ type: 'application/json' }),
+//     stripeWebhooks
+//   );
 
 // Clerk webhook
 app.post(

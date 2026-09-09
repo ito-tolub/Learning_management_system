@@ -2,7 +2,6 @@ import { clerkClient } from "@clerk/express";
 import Course from "../models/Course.js";
 import { v2 as cloudinary } from "cloudinary";
 import User from "../models/User.js";
-import { Purchase } from "../models/Purchase.js";
 import { CourseProgress } from "../models/CourseProgress.js";
 import { LectureActivity } from "../models/LectureActivity.js";
 import jwt from "jsonwebtoken";
@@ -470,21 +469,13 @@ export const getCourseQuizResults = async (req, res) => {
 // ─── Educator Dashboard Data ──────────────────────────────────────────────────
 export const educatorDashboardData = async (req, res) => {
   try {
-    const educatorNip = req.educator.nip; // ← ganti ini
+    const educatorNip = req.educator.nip;
     const courses = await Course.find({ educator: educatorNip });
     const totalCourses = courses.length;
-    const courseIds = courses.map((course) => course._id);
-
-    const purchases = await Purchase.find({
-      courseId: { $in: courseIds },
-      status: "completed",
-    });
-    const totalEarnings = purchases.reduce((sum, p) => sum + p.amount, 0);
+    // const courseIds = courses.map((course) => course._id);
 
     const enrolledStudentsData = [];
     for (const course of courses) {
-      // sumber kebenaran: User.enrolledCourses (bukan Course.enrolledStudents,
-      // yang bisa tidak sinkron — lihat catatan di getCourseQuizResults)
       const students = await User.find(
         { enrolledCourses: course._id },
         "name imageUrl",
@@ -496,7 +487,7 @@ export const educatorDashboardData = async (req, res) => {
 
     res.json({
       success: true,
-      dashboardData: { totalEarnings, enrolledStudentsData, totalCourses },
+      dashboardData: { enrolledStudentsData, totalCourses },
     });
   } catch (error) {
     res.json({ success: false, message: error.message });
@@ -506,23 +497,19 @@ export const educatorDashboardData = async (req, res) => {
 // ─── Get Enrolled Students Data ───────────────────────────────────────────────
 export const getEnrolledStudentsData = async (req, res) => {
   try {
-    const educatorNip = req.educator.nip; // ← ganti ini
+    const educatorNip = req.educator.nip; 
     const courses = await Course.find({ educator: educatorNip });
-    const courseIds = courses.map((course) => course._id);
 
-    const purchases = await Purchase.find({
-      courseId: { $in: courseIds },
-      status: "completed",
-    })
-      .populate("userId", "name imageUrl")
-      .populate("courseId", "courseTitle");
-
-    const enrolledStudents = purchases.map((purchase) => ({
-      student: purchase.userId,
-      courseTitle: purchase.courseId.courseTitle,
-      purchaseDate: purchase.createdAt,
-    }));
-
+    const enrolledStudents = [];
+    for (const course of courses) {
+      const students = await User.find(
+        { enrolledCourses: course._id },
+        "name imageUrl npp"
+      );
+      students.forEach((student) =>
+        enrolledStudents.push({ student, courseTitle: course.courseTitle })
+      );
+    }
     res.json({ success: true, enrolledStudents });
   } catch (error) {
     res.json({ success: false, message: error.message });

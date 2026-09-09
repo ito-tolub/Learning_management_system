@@ -4,7 +4,7 @@ import { AppContext } from "../../context/AppContext";
 import { toast } from "react-toastify";
 
 const CourseCard = ({ course, isRecommended = false, badgeEmoji = "" }) => {
-  const { calculateRating, enrolledCourses } = useContext(AppContext);
+  const { enrolledCourses } = useContext(AppContext);
 
   // Cek apakah praja terdaftar di course ini
   const isEnrolled = (enrolledCourses || []).some(

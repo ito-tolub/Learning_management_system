@@ -1,5 +1,5 @@
 import express from 'express'
-import { getUserData, enrollPaidCourse, enrollFreeCourse, userEnrolledCourses, getUserCourseProgress, updateUserCourseProgress, addUserRating, saveVarkResult, saveNpp, updateCourseProgress, getMyAdaptiveVark  } from '../controllers/userController.js'
+import { getUserData, enrollFreeCourse, userEnrolledCourses, getUserCourseProgress, updateUserCourseProgress, saveVarkResult, saveNpp, updateCourseProgress, getMyAdaptiveVark  } from '../controllers/userController.js'
 import { trackLectureActivity } from '../controllers/educatorController.js'
  
 const userRouter = express.Router()
@@ -7,7 +7,7 @@ const userRouter = express.Router()
 userRouter.get('/data', getUserData)
 userRouter.get('/adaptive-vark', getMyAdaptiveVark)
 userRouter.get('/enrolled-courses', userEnrolledCourses)
-userRouter.post('/purchase', enrollPaidCourse)
+// userRouter.post('/purchase', enrollPaidCourse)
 userRouter.post('/enroll-free', enrollFreeCourse)
 userRouter.post('/save-vark', saveVarkResult)
 userRouter.post('/save-npp', saveNpp)
