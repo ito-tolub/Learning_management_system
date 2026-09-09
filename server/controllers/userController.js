@@ -143,10 +143,9 @@ export const getUserData = async (req, res) => {
 
     let keprajaan = null;
     if (user.npp) {
-      const allKeprajaan = await Keprajaan.find({}).lean();
-      keprajaan =
-        allKeprajaan.find((k) => k.npp.toString() === user.npp.toString()) ||
-        null;
+      keprajaan = await Keprajaan.findOne({
+        npp: String(user.npp).trim(),
+      }).lean();
     }
 
     const userWithKeprajaan = {
@@ -186,29 +185,7 @@ export const saveNpp = async (req, res) => {
     // CARI DATA KEPRAJAAN
     // =========================================
 
-    const allKeprajaan = await Keprajaan.find({}).lean();
-
-    const keprajaan =
-      allKeprajaan.find((item) => {
-        const dbNpp = String(item.npp).trim();
-
-        // Perbandingan string langsung
-        if (dbNpp === nppInput) {
-          return true;
-        }
-
-        // Kompatibilitas data lama
-        // apabila NPP pernah tersimpan sebagai Number.
-        const dbNumber = Number.parseFloat(dbNpp);
-
-        const inputNumber = Number.parseFloat(nppInput);
-
-        if (Number.isNaN(dbNumber) || Number.isNaN(inputNumber)) {
-          return false;
-        }
-
-        return dbNumber.toFixed(4) === inputNumber.toFixed(4);
-      }) || null;
+    const keprajaan = await Keprajaan.findOne({ npp: nppInput }).lean();
 
     // =========================================
     // NPP TIDAK DITEMUKAN
@@ -538,15 +515,7 @@ export const saveVarkResult = async (req, res) => {
     let keprajaan = null;
 
     if (user.npp) {
-      const allKeprajaan = await Keprajaan.find({}).lean();
-
-      keprajaan =
-        allKeprajaan.find(
-          (item) =>
-            String(item.npp) === String(user.npp) ||
-            Number.parseFloat(item.npp).toFixed(4) ===
-              Number.parseFloat(user.npp).toFixed(4),
-        ) || null;
+      keprajaan = await Keprajaan.findOne({ npp: String(user.npp).trim() }).lean();
     }
 
     // ========================================
@@ -583,47 +552,64 @@ export const saveVarkResult = async (req, res) => {
 export const getMyAdaptiveVark = async (req, res) => {
   try {
     const userId = req.auth.userId;
- 
+
     const user = await User.findById(userId, "varkResult").lean();
     const quizScores = user?.varkResult?.scores || { V: 0, A: 0, R: 0, K: 0 };
- 
+
     // Ambil semua aktivitas baca user ini
     const activities = await LectureActivity.find({ userId }).lean();
- 
+
     if (activities.length === 0) {
       // Belum ada riwayat baca -> adaptif = 100% kuisioner
-      const adaptive = calculateAdaptiveVark(quizScores, { V: 0, A: 0, R: 0, K: 0 });
-      return res.json({ success: true, adaptiveScores: adaptive.scores, dominant: adaptive.dominant });
+      const adaptive = calculateAdaptiveVark(quizScores, {
+        V: 0,
+        A: 0,
+        R: 0,
+        K: 0,
+      });
+      return res.json({
+        success: true,
+        adaptiveScores: adaptive.scores,
+        dominant: adaptive.dominant,
+      });
     }
- 
+
     // Bangun peta lectureId -> tag, hanya untuk course yang relevan (efisien)
     const courseIds = [...new Set(activities.map((a) => a.courseId))];
     const courses = await Course.find({ _id: { $in: courseIds } }).lean();
- 
+
     const lectureTagMap = new Map(); // key: `${courseId}::${lectureId}`
     for (const course of courses) {
       for (const chapter of course.courseContent || []) {
         for (const lecture of chapter.chapterContent || []) {
-          lectureTagMap.set(`${course._id.toString()}::${lecture.lectureId}`, lecture.tags || null);
+          lectureTagMap.set(
+            `${course._id.toString()}::${lecture.lectureId}`,
+            lecture.tags || null,
+          );
         }
       }
     }
- 
+
     // Jumlahkan total detik akses per tag
     const secondsByTag = { V: 0, A: 0, R: 0, K: 0 };
     for (const activity of activities) {
-      const tag = lectureTagMap.get(`${activity.courseId}::${activity.lectureId}`);
+      const tag = lectureTagMap.get(
+        `${activity.courseId}::${activity.lectureId}`,
+      );
       if (tag && secondsByTag[tag] !== undefined) {
         secondsByTag[tag] += activity.totalDuration || 0;
       }
     }
- 
+
     const readingMinutes = Object.fromEntries(
-      Object.entries(secondsByTag).map(([tag, sec]) => [tag, Math.round((sec / 60) * 10) / 10]),
+      Object.entries(secondsByTag).map(([tag, sec]) => [
+        tag,
+        Math.round((sec / 60) * 10) / 10,
+      ]),
     );
- 
+
     const adaptive = calculateAdaptiveVark(quizScores, readingMinutes);
- 
+
     return res.json({
       success: true,
       adaptiveScores: adaptive.scores, // {V,A,R,K} dalam persen, dipakai sbg vektor cosine similarity

@@ -13,7 +13,7 @@ userRouter.post('/save-vark', saveVarkResult)
 userRouter.post('/save-npp', saveNpp)
 userRouter.post('/update-course-progress', updateCourseProgress)
 userRouter.post('/get-course-progress', getUserCourseProgress)
-userRouter.post('/add-rating', addUserRating)
+// userRouter.post('/add-rating', addUserRating)
 userRouter.post('/track-activity', trackLectureActivity)
  
 export default userRouter;

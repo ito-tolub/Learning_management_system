@@ -2,9 +2,10 @@ import mongoose from "mongoose";
 
 const keprajaanSchema = new mongoose.Schema({
   npp: {
-    type: mongoose.Schema.Types.Mixed,
+    type: String,
     required: true,
     unique: true,
+    trim: true,
   },
 
   nama: {

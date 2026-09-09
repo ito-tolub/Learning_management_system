@@ -54,8 +54,6 @@ const courseSchema = new mongoose.Schema(
 
     // Override nama dosen utk tampilan (opsional; menang atas virtual 'pengajar')
     pengajarNama: { type: String, default: null },
-
-    tags: { type: String, enum: ["V", "A", "R", "K"], default: "V" },
   },
   {
     timestamps: true,

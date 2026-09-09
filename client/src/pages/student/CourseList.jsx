@@ -67,7 +67,7 @@ const CourseList = () => {
   const { navigate, allCourses, userData } = useContext(AppContext);
   const { input } = useParams();
   const [filterCourse, setFilterCourse] = useState([]);
-  const [showOnlyRecommended, setShowOnlyRecommended] = useState(false);
+  // const [showOnlyRecommended, setShowOnlyRecommended] = useState(false);
 
   const dominant = userData?.varkResult?.dominant || [];
   const durationCategory = getDurationCategory(userData);
@@ -85,25 +85,9 @@ const CourseList = () => {
         );
       }
 
-      if (showOnlyRecommended && dominant.length) {
-        tempCourses = tempCourses.filter(
-          (course) =>
-            dominant.includes(course.tags) &&
-            matchesDuration(course, durationCategory),
-        );
-        if (tempCourses.length === 0) {
-          tempCourses = allCourses.filter((course) =>
-            dominant.includes(course.tags),
-          );
-        }
-      }
-
       setFilterCourse(tempCourses);
     }
-  }, [allCourses, input, showOnlyRecommended]);
-
-  const isRecommended = (course) =>
-    dominant.includes(course.tags) && matchesDuration(course, durationCategory);
+  }, [allCourses, input]);
 
   return (
     <>
@@ -126,29 +110,6 @@ const CourseList = () => {
           <SearchBar data={input} />
         </div>
 
-        {/* Banner VARK + Durasi
-        {dominant && info && (
-          <div className={`mt-6 border rounded-xl px-5 py-4 ${info.color}`}>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-3'>
-                <span className='text-2xl'>{info.emoji}</span>
-                <div>
-                  <p className='font-semibold'>Gaya belajarmu: {info.label}</p>
-                  <p className='text-sm opacity-80'>
-                    {durInfo.emoji} Durasi konten yang cocok: <strong>{durInfo.label}</strong>
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowOnlyRecommended(!showOnlyRecommended)}
-                className={`ml-4 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${showOnlyRecommended ? 'bg-white' : 'opacity-70'}`}
-              >
-                {showOnlyRecommended ? '✓ Filter Aktif' : 'Tampilkan Rekomendasi'}
-              </button>
-            </div>
-          </div>
-        )} */}
-
         {input && (
           <div className="inline-flex items-center gap-4 px-4 py-2 border mt-8 mb-8 text-gray-600">
             <p>{input}</p>
@@ -163,14 +124,7 @@ const CourseList = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 my-16 gap-3 px-2 md:p-0">
           {filterCourse.map((course, index) => (
-            <div key={index} className="relative">
-              {isRecommended(course) && (
-                <div className="absolute top-2 left-2 z-10 bg-blue-600 text-white text-xs px-2 py-1 rounded-full">
-                  {info.emoji} Rekomendasi
-                </div>
-              )}
-              <CourseCard course={course} />
-            </div>
+              <CourseCard key={index} course={course} />            
           ))}
         </div>
       </div>

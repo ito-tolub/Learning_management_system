@@ -12,7 +12,6 @@ import NppInput from "./pages/student/NppInput";
 import TimelineBerita from "./pages/student/TimelineBerita";
 import QuizPage from "./pages/student/QuizPage";
 import Dashboard from "./pages/educator/Dashboard";
-import AddCourse from "./pages/educator/AddCourse";
 import MyCourses from "./pages/educator/MyCourses";
 import StudentsEnrolled from "./pages/educator/StudentsEnrolled";
 import StudentEngagement from "./pages/educator/StudentEngagement";

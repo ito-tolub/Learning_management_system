@@ -14,7 +14,6 @@ const AddCourse = () => {
   const [courseTitle, setCourseTitle] = useState("");
   const [image, setImage] = useState(null);
   const [chapters, setChapters] = useState([]);
-  const [tags, setTags] = useState("V");
 
   const [showPopup, setShowPopup] = useState(false);
   const [currentChapterId, setCurrentChapterId] = useState(null);
@@ -105,7 +104,6 @@ const AddCourse = () => {
         courseTitle,
         courseDescription: quillRef.current.root.innerHTML,
         courseContent: chapters,
-        tags,
       };
       const formData = new FormData();
       formData.append("courseData", JSON.stringify(courseData));
@@ -123,7 +121,6 @@ const AddCourse = () => {
         setCourseTitle("");
         setImage(null);
         setChapters([]);
-        setTags("V");
         quillRef.current.root.innerHTML = "";
       } else {
         toast.error(data.message);
@@ -182,23 +179,6 @@ const AddCourse = () => {
               />
             </label>
           </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <p>Tipe Konten (VARK)</p>
-          <select
-            onChange={(e) => setTags(e.target.value)}
-            value={tags}
-            className="md:py-2.5 py-2 px-3 rounded border border-gray-500 text-gray-700"
-          >
-            <option value="V">🎬 Visual — Konten Video</option>
-            <option value="A">🎧 Auditory — Konten Audio</option>
-            <option value="R">📄 Read/Write — Konten PDF / Teks</option>
-            <option value="K">🛠️ Kinesthetic — Praktik Langsung</option>
-          </select>
-          <p className="text-xs text-gray-400">
-            Pilih tipe konten utama kursus ini untuk sistem rekomendasi
-          </p>
         </div>
 
         <div>
