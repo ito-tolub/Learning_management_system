@@ -8,7 +8,10 @@ import jwt from "jsonwebtoken";
 import Pegawai from "../models/pegawai.js";
 import Keprajaan from "../models/Keprajaan.js";
 import bcrypt from "bcryptjs";
-import { calculateTargetEngagement } from "../utils/calculateFeedbackScore.js";
+import {
+  calculateTargetEngagement,
+  MAIN_LECTURE_IDS_BY_CHAPTER,
+} from "../utils/calculateFeedbackScore.js";
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
 import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
@@ -497,17 +500,17 @@ export const educatorDashboardData = async (req, res) => {
 // ─── Get Enrolled Students Data ───────────────────────────────────────────────
 export const getEnrolledStudentsData = async (req, res) => {
   try {
-    const educatorNip = req.educator.nip; 
+    const educatorNip = req.educator.nip;
     const courses = await Course.find({ educator: educatorNip });
 
     const enrolledStudents = [];
     for (const course of courses) {
       const students = await User.find(
         { enrolledCourses: course._id },
-        "name imageUrl npp"
+        "name imageUrl npp",
       );
       students.forEach((student) =>
-        enrolledStudents.push({ student, courseTitle: course.courseTitle })
+        enrolledStudents.push({ student, courseTitle: course.courseTitle }),
       );
     }
     res.json({ success: true, enrolledStudents });
@@ -973,9 +976,14 @@ export const getVarkTagDurationSummary = async (req, res) => {
     const lectureInfoMap = new Map(); // key: `${courseId}::${lectureId}`
     for (const course of courses) {
       for (const chapter of course.courseContent || []) {
+        const mainIds = new Set(
+          MAIN_LECTURE_IDS_BY_CHAPTER[chapter.chapterId] || [],
+        );
+
         for (const lecture of chapter.chapterContent || []) {
           lectureInfoMap.set(`${course._id.toString()}::${lecture.lectureId}`, {
             tag: lecture.tags || "UNTAGGED",
+            isMain: mainIds.has(lecture.lectureId),
             varkvektor: lecture.varkvektor || null,
             lectureTitle: lecture.lectureTitle,
             courseTitle: course.courseTitle,
@@ -1029,6 +1037,7 @@ export const getVarkTagDurationSummary = async (req, res) => {
             totalSeconds: 0,
             lecturesAccessed: 0,
             accessCount: 0,
+            pilihanSeconds: 0,
           },
         ]),
       );
@@ -1044,6 +1053,10 @@ export const getVarkTagDurationSummary = async (req, res) => {
       const tag = info?.tag || "UNTAGGED";
       const prajaInfo = prajaByUserId.get(activity.userId);
       const kelas = prajaInfo?.kelas;
+
+      if (info?.isMain) {
+        continue;
+      }
 
       overall[tag].totalSeconds += activity.totalDuration || 0;
       overall[tag].lecturesAccessed += 1;
@@ -1070,6 +1083,7 @@ export const getVarkTagDurationSummary = async (req, res) => {
       TAGS.map((t) => ({
         tag: t,
         totalMinutes: Math.round((bucket[t].totalSeconds / 60) * 10) / 10,
+        pilihanMinutes: Math.round((bucket[t].pilihanSeconds / 60) * 10) / 10,
         lecturesAccessed: bucket[t].lecturesAccessed,
         accessCount: bucket[t].accessCount,
       }));

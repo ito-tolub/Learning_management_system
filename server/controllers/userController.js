@@ -7,6 +7,7 @@ import { LectureActivity } from "../models/LectureActivity.js";
 import Pegawai from "../models/pegawai.js";
 import { clerkClient } from "@clerk/express";
 import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
+import { MAIN_LECTURE_IDS_BY_CHAPTER } from "../utils/calculateFeedbackScore.js"; // <-- BARU
 
 export const updateCourseProgress = async (req, res) => {
   try {
@@ -581,7 +582,19 @@ export const getMyAdaptiveVark = async (req, res) => {
     const lectureTagMap = new Map(); // key: `${courseId}::${lectureId}`
     for (const course of courses) {
       for (const chapter of course.courseContent || []) {
+                const mainIds = new Set(
+          MAIN_LECTURE_IDS_BY_CHAPTER[chapter.chapterId] || [],
+        );
+
         for (const lecture of chapter.chapterContent || []) {
+          // Objek pembelajaran utama WAJIB diselesaikan oleh seluruh praja,
+          // baik G1 maupun G2. Durasinya bukan hasil pilihan, sehingga
+          // tidak mencerminkan preferensi modalitas dan dikecualikan dari
+          // pembentukan profil adaptif.
+          if (mainIds.has(lecture.lectureId)) {
+            continue;
+          }
+
           lectureTagMap.set(
             `${course._id.toString()}::${lecture.lectureId}`,
             lecture.tags || null,

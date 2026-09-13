@@ -68,7 +68,7 @@ const fmtDur = (sec) => {
   return `${s}d`;
 };
 
-const PctBar = ({ value }) => {
+const PctBar = ({ value, showValue = true }) => {
   const pct = Math.max(0, Math.min(Number(value || 0), 100));
 
   const color =
@@ -85,9 +85,11 @@ const PctBar = ({ value }) => {
         />
       </div>
 
-      <span className="text-xs text-gray-500 whitespace-nowrap">
-        {Math.round(pct)}%
-      </span>
+      {showValue && (
+        <span className="text-xs text-gray-500 whitespace-nowrap">
+          {Math.round(pct)}%
+        </span>
+      )}
     </div>
   );
 };
@@ -217,7 +219,7 @@ const StudentEngagement = () => {
     G2: sesData.filter((s) => s.kelas?.toUpperCase() === "G2").length,
   };
 
-    const avgPct = (list, key) => {
+  const avgPct = (list, key) => {
     if (!list.length) return 0;
 
     const total = list.reduce((sum, s) => sum + Number(s[key] || 0), 0);
@@ -392,7 +394,7 @@ const StudentEngagement = () => {
       </div>
 
       {/* RINGKASAN */}
-            {/* RINGKASAN PERSENTASE PER KELAS */}
+      {/* RINGKASAN PERSENTASE PER KELAS */}
       <div className="grid md:grid-cols-2 gap-4 mb-6">
         {["G1", "G2"].map((kelas) => (
           <div
@@ -412,7 +414,7 @@ const StudentEngagement = () => {
                   <span>Interaksi</span>
                   <span>{kelasSummary[kelas].interaksi}%</span>
                 </div>
-                <PctBar value={kelasSummary[kelas].interaksi} />
+                <PctBar value={kelasSummary[kelas].interaksi} showValue={false} />
               </div>
 
               <div>
@@ -420,7 +422,7 @@ const StudentEngagement = () => {
                   <span>Penyelesaian Materi</span>
                   <span>{kelasSummary[kelas].penyelesaian}%</span>
                 </div>
-                <PctBar value={kelasSummary[kelas].penyelesaian} />
+                <PctBar value={kelasSummary[kelas].penyelesaian} showValue={false} />
               </div>
 
               <div>
@@ -428,7 +430,7 @@ const StudentEngagement = () => {
                   <span>Presensi</span>
                   <span>{kelasSummary[kelas].presensi}%</span>
                 </div>
-                <PctBar value={kelasSummary[kelas].presensi} />
+                <PctBar value={kelasSummary[kelas].presensi} showValue={false} />
               </div>
 
               <div>
@@ -436,11 +438,13 @@ const StudentEngagement = () => {
                   <span className="font-medium text-gray-700">
                     Total Engagement Score (SES)
                   </span>
-                  <span className={`font-semibold ${sesColor(kelasSummary[kelas].ses)}`}>
+                  <span
+                    className={`font-semibold ${sesColor(kelasSummary[kelas].ses)}`}
+                  >
                     {kelasSummary[kelas].ses}%
                   </span>
                 </div>
-                <PctBar value={kelasSummary[kelas].ses} />
+                <PctBar value={kelasSummary[kelas].ses} showValue={false} />
               </div>
             </div>
           </div>
@@ -610,9 +614,7 @@ const StudentEngagement = () => {
                         {s.feedback}%
                       </td>
 
-                      <td className="px-4 py-3 text-center text-gray-600">
-                        -
-                      </td>
+                      <td className="px-4 py-3 text-center text-gray-600">-</td>
 
                       <td className="px-4 py-3 text-center text-gray-500 font-mono text-xs">
                         {fmtDur(s.totalDurasiDetik)}
@@ -929,6 +931,7 @@ const StudentEngagement = () => {
                                           s.recommendationAdherence
                                             ?.durationPercent || 0
                                         }
+                                        showValue={false}
                                       />
                                     </div>
 
