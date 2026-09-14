@@ -1251,11 +1251,11 @@ export const calculateTargetEngagement = ({
       ).length;
 
     completionEarned +=
-      mainCompleted +
+      // mainCompleted +
       additionalCompleted;
 
     completionPossible +=
-      mainDetails.length +
+      // mainDetails.length +
       additionalQuota;
 
     /*
@@ -1263,23 +1263,23 @@ export const calculateTargetEngagement = ({
      * denominator interaksi hanya jika
      * lectureDuration valid.
      */
-    for (
-      const detail of
-        mainDetails
-    ) {
-      if (
-        detail
-          .interactionRatio ==
-        null
-      ) {
-        continue;
-      }
+    // for (
+    //   const detail of
+    //     mainDetails
+    // ) {
+    //   if (
+    //     detail
+    //       .interactionRatio ==
+    //     null
+    //   ) {
+    //     continue;
+    //   }
 
-      interactionPossible += 1;
+    //   interactionPossible += 1;
 
-      interactionEarned +=
-        detail.interactionRatio;
-    }
+    //   interactionEarned +=
+    //     detail.interactionRatio;
+    // }
 
     /*
      * Kuota tambahan selalu menjadi

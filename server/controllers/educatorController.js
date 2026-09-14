@@ -15,6 +15,11 @@ import {
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
 import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
+import {
+  Attendance,
+  EXPERIMENT_MEETINGS,
+  PRESENT_STATUSES,
+} from "../models/Attendance.js";
 
 export const verifyNipAndBecomeEducator = async (req, res) => {
   try {
@@ -698,6 +703,22 @@ export const getStudentEngagementScore = async (req, res) => {
     );
 
     const sesData = [];
+    // Presensi periode penelitian, dikelompokkan per praja
+    const attendanceRecords = await Attendance.find({
+      meetingNumber: { $in: EXPERIMENT_MEETINGS },
+    }).lean();
+
+    // Pertemuan yang sudah berlangsung = yang sudah ada catatannya
+    const meetingsHeld = new Set(attendanceRecords.map((r) => r.meetingNumber));
+
+    const hadirByUserId = new Map();
+    for (const record of attendanceRecords) {
+      if (!PRESENT_STATUSES.includes(record.status)) continue;
+      hadirByUserId.set(
+        record.userId,
+        (hadirByUserId.get(record.userId) || 0) + 1,
+      );
+    }
 
     for (const praja of semuaPraja) {
       const nppStr = String(praja.npp || "").trim();
@@ -892,16 +913,17 @@ export const getStudentEngagementScore = async (req, res) => {
             }
           : null;
 
-      /*
-       * Sementara tetap 100
-       * sampai modul presensi
-       * aktual dihubungkan.
-       */
-      const presensi = 100;
+      const totalPertemuan = meetingsHeld.size;
+      const jumlahHadir = hadirByUserId.get(user?._id) || 0;
+
+      const presensi =
+        totalPertemuan > 0
+          ? Math.min((jumlahHadir / totalPertemuan) * 100, 100)
+          : 0;
       const ses = interaksi * 0.3 + feedback * 0.3 + presensi * 0.4;
 
-      let kategori = "Tidak Aktif";
-      let kategoriColor = "red";
+      let kategori = "Kurang Aktif";
+      let kategoriColor = "orange";
 
       if (ses >= 80) {
         kategori = "Sangat Aktif";
@@ -909,9 +931,6 @@ export const getStudentEngagementScore = async (req, res) => {
       } else if (ses >= 65) {
         kategori = "Aktif";
         kategoriColor = "yellow";
-      } else if (ses >= 50) {
-        kategori = "Kurang Aktif";
-        kategoriColor = "orange";
       }
 
       sesData.push({
@@ -921,7 +940,9 @@ export const getStudentEngagementScore = async (req, res) => {
         kelas: praja.kelas,
         interaksi: Math.round(interaksi * 10) / 10,
         feedback: Math.round(feedback * 10) / 10,
-        presensi,
+        presensi: Math.round(presensi * 10) / 10,
+        jumlahHadir,
+        totalPertemuan,
         ses: Math.round(ses * 100) / 100,
         interactionEarned: Number(grandInteractionEarned.toFixed(4)),
         interactionPossible: grandInteractionPossible,
@@ -1006,6 +1027,7 @@ export const getVarkTagDurationSummary = async (req, res) => {
 
     // userId (Clerk) -> info praja (nama, npp, kelas, skor kuisioner)
     const prajaByUserId = new Map();
+
     for (const user of users) {
       if (user.npp == null) continue;
       const praja = nppToPraja.get(String(user.npp).trim());

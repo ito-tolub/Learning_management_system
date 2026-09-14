@@ -22,6 +22,7 @@ import Navbar from "./components/student/Navbar";
 import { AppContext } from "./context/AppContext";
 import "quill/dist/quill.snow.css";
 import { ToastContainer } from "react-toastify";
+import Presensi from "./pages/educator/Presensi";
 
 const RequireOnboarding = ({ children }) => {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -99,8 +100,7 @@ const VarkOnboardingRoute = () => {
   // Cek apakah user sudah pernah mengisi VARK
   const dominant = userData?.varkResult?.dominant;
 
-  const hasCompletedVark =
-    Array.isArray(dominant) && dominant.length > 0;
+  const hasCompletedVark = Array.isArray(dominant) && dominant.length > 0;
 
   // Sudah pernah VARK → jangan izinkan mengulang
   if (hasCompletedVark) {
@@ -180,7 +180,6 @@ const App = () => {
             </RequireOnboarding>
           }
         />
-
         <Route path="/npp-input" element={<NppInput />} />
         <Route path="/vark-quiz" element={<VarkOnboardingRoute />} />
         <Route path="/loading/:path" element={<Loading />} />
@@ -194,6 +193,7 @@ const App = () => {
           <Route path="assignments" element={<AssignmentManager />} />
 
           <Route path="student-enrolled" element={<StudentsEnrolled />} />
+          <Route path="presensi" element={<Presensi />} />
         </Route>
       </Routes>
     </div>

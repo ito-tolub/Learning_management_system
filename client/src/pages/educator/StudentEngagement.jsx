@@ -647,9 +647,6 @@ const StudentEngagement = () => {
                           <div className="px-8 py-4 bg-blue-50">
                             <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                               <div>
-                                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-                                  Target SES — {s.nama}
-                                </p>
                                 <p className="mt-1 text-[11px] text-blue-500">
                                   {s.kelas?.toUpperCase() === "G2"
                                     ? "Materi utama + Top-4 rekomendasi hybrid per pertemuan"
