@@ -49,6 +49,7 @@ const EducatorLayout = () => {
     },
     { label: "Ringkasan VARK", path: "/educator/vark-summary" },
     { label: "Presensi", path: "/educator/presensi" },
+    { label: "Kelola Objek Pembelajaran", path: "/educator/objek-pembelajaran" },
   ];
 
   const handleLogout = () => {

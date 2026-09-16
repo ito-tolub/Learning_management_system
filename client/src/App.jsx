@@ -24,6 +24,7 @@ import "quill/dist/quill.snow.css";
 import { ToastContainer } from "react-toastify";
 import Presensi from "./pages/educator/Presensi";
 import KelolaKuis from "./pages/educator/KelolaKuis";
+import ObjekPembelajaran from "./pages/educator/ObjekPembelajaran";
 
 const RequireOnboarding = ({ children }) => {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -196,6 +197,7 @@ const App = () => {
 
           <Route path="student-enrolled" element={<StudentsEnrolled />} />
           <Route path="presensi" element={<Presensi />} />
+          <Route path="objek-pembelajaran" element={<ObjekPembelajaran />} />
         </Route>
       </Routes>
     </div>
