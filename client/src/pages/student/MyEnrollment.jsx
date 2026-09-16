@@ -79,7 +79,7 @@ const getInstructionalProfile = (mentalKepribadian) => {
   if (!Number.isFinite(score)) return null;
 
   return {
-    contentGranularity: score >= MENTAL_REFERENCE_VALUE ? "macro" : "micro",
+    contentGranularity: score >= MENTAL_REFERENCE_VALUE ? "utuh" : "tersegmentasi",
     cognitiveLevel: score >= MENTAL_REFERENCE_VALUE ? "C4-C6" : "C1-C3",
   };
 };

@@ -565,6 +565,10 @@ const StudentEngagement = () => {
 
                 const isOpen = expandedRows.has(rowKey);
 
+                const nonMainDetail = (s.detail || []).filter(
+                  (d) => d.role !== "main",
+                );
+
                 const hasDetail =
                   (s.detail?.length || 0) > 0 ||
                   (s.exploration?.count || 0) > 0;
@@ -647,11 +651,6 @@ const StudentEngagement = () => {
                           <div className="px-8 py-4 bg-blue-50">
                             <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                               <div>
-                                <p className="mt-1 text-[11px] text-blue-500">
-                                  {s.kelas?.toUpperCase() === "G2"
-                                    ? "Materi utama + Top-4 rekomendasi hybrid per pertemuan"
-                                    : "Materi utama + 4 OBPEM pertama yang benar-benar diakses per pertemuan"}
-                                </p>
                               </div>
 
                               <div className="flex gap-2 text-[11px]">
@@ -667,7 +666,7 @@ const StudentEngagement = () => {
                             </div>
 
                             {/* DETAIL TARGET */}
-                            {(s.detail?.length || 0) > 0 && (
+                            {nonMainDetail.length > 0 && (
                               <table className="w-full text-xs border-collapse">
                                 <thead>
                                   <tr className="text-gray-500 border-b border-blue-100">
@@ -698,7 +697,7 @@ const StudentEngagement = () => {
                                 </thead>
 
                                 <tbody>
-                                  {s.detail.map((d, di) => (
+                                  {nonMainDetail.map((d, di) => (
                                     <tr
                                       key={`${d.courseId || "course"}-${d.chapterId || "chapter"}-${d.lectureId || di}`}
                                       className="hover:bg-blue-100/40"
@@ -759,7 +758,7 @@ const StudentEngagement = () => {
                                     <td className="pt-2 px-4 text-center">—</td>
 
                                     <td className="pt-2 px-4 text-center">
-                                      {s.detail.reduce(
+                                      {nonMainDetail.reduce(
                                         (a, d) => a + (d.accessCount || 0),
                                         0,
                                       )}

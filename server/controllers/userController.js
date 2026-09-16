@@ -6,8 +6,7 @@ import { CourseProgress } from "../models/CourseProgress.js";
 import { LectureActivity } from "../models/LectureActivity.js";
 import Pegawai from "../models/pegawai.js";
 import { clerkClient } from "@clerk/express";
-import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
-import { MAIN_LECTURE_IDS_BY_CHAPTER } from "../utils/calculateFeedbackScore.js"; // <-- BARU
+import { getUserVarkVector } from "../utils/getUserVarkVector.js";
 
 export const updateCourseProgress = async (req, res) => {
   try {
@@ -553,81 +552,13 @@ export const saveVarkResult = async (req, res) => {
 export const getMyAdaptiveVark = async (req, res) => {
   try {
     const userId = req.auth.userId;
-
-    const user = await User.findById(userId, "varkResult").lean();
-    const quizScores = user?.varkResult?.scores || { V: 0, A: 0, R: 0, K: 0 };
-
-    // Ambil semua aktivitas baca user ini
-    const activities = await LectureActivity.find({ userId }).lean();
-
-    if (activities.length === 0) {
-      // Belum ada riwayat baca -> adaptif = 100% kuisioner
-      const adaptive = calculateAdaptiveVark(quizScores, {
-        V: 0,
-        A: 0,
-        R: 0,
-        K: 0,
-      });
-      return res.json({
-        success: true,
-        adaptiveScores: adaptive.scores,
-        dominant: adaptive.dominant,
-      });
-    }
-
-    // Bangun peta lectureId -> tag, hanya untuk course yang relevan (efisien)
-    const courseIds = [...new Set(activities.map((a) => a.courseId))];
-    const courses = await Course.find({ _id: { $in: courseIds } }).lean();
-
-    const lectureTagMap = new Map(); // key: `${courseId}::${lectureId}`
-    for (const course of courses) {
-      for (const chapter of course.courseContent || []) {
-                const mainIds = new Set(
-          MAIN_LECTURE_IDS_BY_CHAPTER[chapter.chapterId] || [],
-        );
-
-        for (const lecture of chapter.chapterContent || []) {
-          // Objek pembelajaran utama WAJIB diselesaikan oleh seluruh praja,
-          // baik G1 maupun G2. Durasinya bukan hasil pilihan, sehingga
-          // tidak mencerminkan preferensi modalitas dan dikecualikan dari
-          // pembentukan profil adaptif.
-          if (mainIds.has(lecture.lectureId)) {
-            continue;
-          }
-
-          lectureTagMap.set(
-            `${course._id.toString()}::${lecture.lectureId}`,
-            lecture.tags || null,
-          );
-        }
-      }
-    }
-
-    // Jumlahkan total detik akses per tag
-    const secondsByTag = { V: 0, A: 0, R: 0, K: 0 };
-    for (const activity of activities) {
-      const tag = lectureTagMap.get(
-        `${activity.courseId}::${activity.lectureId}`,
-      );
-      if (tag && secondsByTag[tag] !== undefined) {
-        secondsByTag[tag] += activity.totalDuration || 0;
-      }
-    }
-
-    const readingMinutes = Object.fromEntries(
-      Object.entries(secondsByTag).map(([tag, sec]) => [
-        tag,
-        Math.round((sec / 60) * 10) / 10,
-      ]),
-    );
-
-    const adaptive = calculateAdaptiveVark(quizScores, readingMinutes);
+    const profile = await getUserVarkVector(userId);
 
     return res.json({
       success: true,
-      adaptiveScores: adaptive.scores, // {V,A,R,K} dalam persen, dipakai sbg vektor cosine similarity
-      dominant: adaptive.dominant,
-      sources: adaptive.sources, // untuk debugging/transparansi kalau perlu ditampilkan
+      adaptiveScores: profile.scores,
+      dominant: profile.dominant,
+      sources: profile.sources,
     });
   } catch (error) {
     console.error("getMyAdaptiveVark error:", error);

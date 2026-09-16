@@ -15,11 +15,9 @@ import {
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
 import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
-import {
-  Attendance,
-  EXPERIMENT_MEETINGS,
-  PRESENT_STATUSES,
+import {Attendance, EXPERIMENT_MEETINGS, PRESENT_STATUSES,
 } from "../models/Attendance.js";
+import { getUserVarkVectorBulk } from "../utils/getUserVarkVector.js";
 
 export const verifyNipAndBecomeEducator = async (req, res) => {
   try {
@@ -720,6 +718,10 @@ export const getStudentEngagementScore = async (req, res) => {
       );
     }
 
+    const varkByUserId = await getUserVarkVectorBulk(
+      users.map((u) => u._id),
+    );
+
     for (const praja of semuaPraja) {
       const nppStr = String(praja.npp || "").trim();
 
@@ -785,7 +787,10 @@ export const getStudentEngagementScore = async (req, res) => {
             course,
             kelas: normalizedClass,
             lectureCompleted: progress?.lectureCompleted || [],
-            userVarkVector: user?.varkResult?.scores || null,
+            userVarkVector:
+              varkByUserId.get(user._id)?.scores ||
+              user?.varkResult?.scores ||
+              null,
             mentalKepribadian: praja?.mentalKepribadian,
             activities,
           });

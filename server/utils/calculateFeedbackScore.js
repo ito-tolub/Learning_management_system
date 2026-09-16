@@ -145,8 +145,8 @@ const getInstructionalProfile = (
     contentGranularity:
       score >=
       MENTAL_REFERENCE_VALUE
-        ? "macro"
-        : "micro",
+        ? "utuh"
+        : "tersegmentasi",
 
     cognitiveLevel:
       score >=
@@ -1258,39 +1258,6 @@ export const calculateTargetEngagement = ({
       // mainDetails.length +
       additionalQuota;
 
-    /*
-     * Materi utama:
-     * denominator interaksi hanya jika
-     * lectureDuration valid.
-     */
-    // for (
-    //   const detail of
-    //     mainDetails
-    // ) {
-    //   if (
-    //     detail
-    //       .interactionRatio ==
-    //     null
-    //   ) {
-    //     continue;
-    //   }
-
-    //   interactionPossible += 1;
-
-    //   interactionEarned +=
-    //     detail.interactionRatio;
-    // }
-
-    /*
-     * Kuota tambahan selalu menjadi
-     * denominator.
-     *
-     * G1:
-     * slot belum dipakai = 0.
-     *
-     * G2:
-     * rekomendasi belum diakses = 0.
-     */
     interactionPossible +=
       additionalQuota;
 

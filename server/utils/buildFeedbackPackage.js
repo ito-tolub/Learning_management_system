@@ -73,7 +73,7 @@ const getInstructionalProfile = (mentalKepribadian) => {
 
   return {
     contentGranularity:
-      score >= MENTAL_REFERENCE_VALUE ? "macro" : "micro",
+      score >= MENTAL_REFERENCE_VALUE ? "utuh" : "tersegmentasi",
 
     cognitiveLevel:
       score >= MENTAL_REFERENCE_VALUE ? "C4-C6" : "C1-C3",
@@ -174,10 +174,6 @@ export const buildFeedbackPackage = ({
       courseAssignedIds.add(lectureId);
     }
 
-    /*
-     * 2. Objek sesuai modalitas dominan
-     * dan jalur micro/macro praja.
-     */
     const dominantLectures = lectures.filter((lecture) => {
       const modality = normalizeVark(lecture.tags);
 
