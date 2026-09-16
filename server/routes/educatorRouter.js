@@ -2,11 +2,14 @@ import express from 'express'
 import { addCourse, getEducatorCourses, updateRoleToEducator, educatorDashboardData, getEnrolledStudentsData, getStudentEngagementScore,  trackLectureActivity, loginDosen, activateDosenPassword, getCourseQuizResults, getVarkTagDurationSummary } from '../controllers/educatorController.js';
 import upload from '../configs/multer.js';
 import { protectDosen, protectEducator } from '../middlewares/authMiddleware.js';
+import { getAttendanceSheet, saveAttendanceSheet, getAttendanceRecap,} from '../controllers/attendanceController.js';
 import {
-  getAttendanceSheet,
-  saveAttendanceSheet,
-  getAttendanceRecap,
-} from '../controllers/attendanceController.js';
+  listQuizzes,
+  getQuizDetail,
+  createQuiz,
+  updateQuiz,
+  deleteQuiz,
+} from '../controllers/quizManageController.js';
 import { clerkMiddleware, requireAuth } from '@clerk/express';
 
 const educatorRouter = express.Router()
@@ -36,5 +39,10 @@ educatorRouter.get(
 educatorRouter.get('/attendance', protectDosen, getAttendanceSheet)
 educatorRouter.get('/attendance/recap', protectDosen, getAttendanceRecap)
 educatorRouter.post('/attendance', protectDosen, saveAttendanceSheet)
+educatorRouter.get('/quizzes', protectDosen, listQuizzes)
+educatorRouter.get('/quizzes/:quizId', protectDosen, getQuizDetail)
+educatorRouter.post('/quizzes', protectDosen, createQuiz)
+educatorRouter.put('/quizzes/:quizId', protectDosen, updateQuiz)
+educatorRouter.delete('/quizzes/:quizId', protectDosen, deleteQuiz)
 
 export default educatorRouter;

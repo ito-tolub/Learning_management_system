@@ -23,6 +23,7 @@ import { AppContext } from "./context/AppContext";
 import "quill/dist/quill.snow.css";
 import { ToastContainer } from "react-toastify";
 import Presensi from "./pages/educator/Presensi";
+import KelolaKuis from "./pages/educator/KelolaKuis";
 
 const RequireOnboarding = ({ children }) => {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -187,6 +188,7 @@ const App = () => {
         <Route path="/educator" element={<Dashboard />}>
           <Route index element={<Navigate to="my-course" replace />} />
           <Route path="my-course" element={<MyCourses />} />
+          <Route path="kelola-kuis" element={<KelolaKuis />} />
 
           <Route path="student-engagement" element={<StudentEngagement />} />
           <Route path="vark-summary" element={<VarkSummary />} />

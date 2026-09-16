@@ -35,9 +35,10 @@ const EducatorLayout = () => {
 
   const menu = [
     {
-      label: "Hasil Kuis Praja",
+      label: "Hasil Kuis",
       path: "/educator/my-course",
     },
+    { label: "Kelola Kuis", path: "/educator/kelola-kuis" },
     {
       label: "Kelola Tugas",
       path: "/educator/assignments",
