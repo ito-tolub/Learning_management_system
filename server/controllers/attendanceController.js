@@ -147,10 +147,6 @@ export const saveAttendanceSheet = async (req, res) => {
   }
 };
 
-/**
- * GET /api/educator/attendance/recap?courseId=...
- * Rekap jumlah pertemuan tercatat per nomor pertemuan.
- */
 export const getAttendanceRecap = async (req, res) => {
   try {
     const { courseId } = req.query;
@@ -183,6 +179,42 @@ export const getAttendanceRecap = async (req, res) => {
     });
   } catch (error) {
     console.error("getAttendanceRecap error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const getMyAttendanceSummary = async (req, res) => {
+  try {
+    const userId = req.auth?.userId;
+    const { id: courseId } = req.params;
+
+    if (!userId) {
+      return res.json({ success: false, message: "Unauthorized" });
+    }
+    if (!courseId) {
+      return res.json({ success: false, message: "courseId wajib diisi" });
+    }
+
+    const records = await Attendance.find({ courseId, userId }).lean();
+
+    const tally = { hadir: 0, sakit: 0, izin: 0, alpa: 0 };
+    records.forEach((r) => {
+      if (tally[r.status] !== undefined) tally[r.status] += 1;
+    });
+
+    return res.json({
+      success: true,
+      kehadiran: {
+        hadir: tally.hadir,
+        sakit: tally.sakit,
+        izin: tally.izin,
+        alpa: tally.alpa,
+        totalTercatat: records.length,
+        totalSesi: TOTAL_MEETINGS,
+      },
+    });
+  } catch (error) {
+    console.error("getMyAttendanceSummary error:", error);
     return res.json({ success: false, message: error.message });
   }
 };

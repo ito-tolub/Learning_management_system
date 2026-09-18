@@ -161,6 +161,31 @@ const ObjekPembelajaran = () => {
     }
   };
 
+  const hapusObjek = async (chapterId, lectureId) => {
+    const yakin = window.confirm(
+      "Apakah Anda yakin ingin menghapus objek pembelajaran ini?",
+    );
+
+    if (!yakin) return;
+    try {
+      const { data } = await axios.delete(
+        `${backendUrl}/api/educator/learning-objects/${courseId}/${chapterId}/${lectureId}`,
+        {
+          headers: headers(),
+        },
+      );
+
+      if (data.success) {
+        toast.success(data.message);
+        fetchObjects();
+      } else {
+        toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
   const totalObjek = useMemo(
     () => chapters.reduce((n, c) => n + c.lectures.length, 0),
     [chapters],
@@ -247,7 +272,7 @@ const ObjekPembelajaran = () => {
 
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-                Estimasi waktu akses (detik)
+                Estimasi waktu akses (menit)
               </label>
               <input
                 type="number"
@@ -287,8 +312,8 @@ const ObjekPembelajaran = () => {
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
               >
                 <option value="">— tidak diisi —</option>
-                <option value="micro">micro</option>
-                <option value="macro">macro</option>
+                <option value="tersegmentasi">tersegmentasi</option>
+                <option value="utuh">utuh</option>
               </select>
             </div>
 
@@ -302,7 +327,7 @@ const ObjekPembelajaran = () => {
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg"
               >
                 <option value="">— tidak diisi —</option>
-                {["C1", "C2", "C3", "C4", "C5", "C6"].map((c) => (
+                {["C1-C3", "C4-C6"].map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -370,7 +395,8 @@ const ObjekPembelajaran = () => {
                       {chapter.chapterTitle}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {chapter.chapterId} &middot; {chapter.lectures.length} objek
+                      {chapter.chapterId} &middot; {chapter.lectures.length}{" "}
+                      objek
                     </p>
                   </button>
 
@@ -390,7 +416,9 @@ const ObjekPembelajaran = () => {
                         <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                           <th className="py-3 px-4 font-medium">Objek</th>
                           <th className="py-3 px-4 font-medium">Modalitas</th>
-                          <th className="py-3 px-4 font-medium">V / A / R / K</th>
+                          <th className="py-3 px-4 font-medium">
+                            V / A / R / K
+                          </th>
                           <th className="py-3 px-4 font-medium">Kategori</th>
                           <th className="py-3 px-4 font-medium text-right">
                             Akses
@@ -416,8 +444,8 @@ const ObjekPembelajaran = () => {
                                 )}
                               </div>
                               <p className="text-xs text-gray-400 mt-0.5">
-                                {l.lectureId} &middot;{" "}
-                                {l.lectureDuration || 0} mnt
+                                {l.lectureId} &middot; {l.lectureDuration || 0}{" "}
+                                mnt
                               </p>
                             </td>
 
@@ -471,6 +499,15 @@ const ObjekPembelajaran = () => {
                                   className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50"
                                 >
                                   Ubah
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    hapusObjek(chapter.chapterId, l.lectureId)
+                                  }
+                                  className="px-3 py-1.5 rounded-lg border border-red-200 text-xs text-red-600 hover:bg-red-50"
+                                >
+                                  Hapus
                                 </button>
                               </div>
                             </td>

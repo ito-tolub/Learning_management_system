@@ -7,6 +7,7 @@ import { LectureActivity } from "../models/LectureActivity.js";
 import Pegawai from "../models/pegawai.js";
 import { clerkClient } from "@clerk/express";
 import { getUserVarkVector } from "../utils/getUserVarkVector.js";
+import { Attendance } from "../models/Attendance.js";
 
 export const updateCourseProgress = async (req, res) => {
   try {
@@ -322,6 +323,30 @@ export const userEnrolledCourses = async (req, res) => {
       pegawaiList.map((pegawai) => [String(pegawai.nip), pegawai]),
     );
 
+    const attendanceRecords = await Attendance.find({ userId }).lean();
+
+    const presensiByCourseId = new Map();
+
+    for (const record of attendanceRecords) {
+      if (!presensiByCourseId.has(record.courseId)) {
+        presensiByCourseId.set(record.courseId, {
+          hadir: 0,
+          sakit: 0,
+          izin: 0,
+          alpa: 0,
+          totalSesi: 0,
+        });
+      }
+
+      const rekap = presensiByCourseId.get(record.courseId);
+
+      if (rekap[record.status] !== undefined) {
+        rekap[record.status] += 1;
+      }
+
+      rekap.totalSesi += 1;
+    }
+
     const enriched = await Promise.all(
       courses.map(async (course) => {
         const obj = course.toObject ? course.toObject() : course;
@@ -332,28 +357,13 @@ export const userEnrolledCourses = async (req, res) => {
           .map((nip) => pegawaiByNip.get(nip))
           .filter(Boolean);
 
-        const totalSesi = Array.isArray(obj.courseContent)
-          ? obj.courseContent.length
-          : 0;
-
-        const progress = await CourseProgress.findOne({
-          userId,
-          courseId: obj._id.toString(),
-        }).lean();
-
-        const completedSet = new Set(progress?.lectureCompleted || []);
-
-        const hadir = (obj.courseContent || []).reduce((total, chapter) => {
-          const lectures = Array.isArray(chapter.chapterContent)
-            ? chapter.chapterContent
-            : [];
-
-          const chapterSelesai = lectures.some((lecture) =>
-            completedSet.has(lecture.lectureId),
-          );
-
-          return total + (chapterSelesai ? 1 : 0);
-        }, 0);
+                const presensi = presensiByCourseId.get(obj._id.toString()) || {
+          hadir: 0,
+          sakit: 0,
+          izin: 0,
+          alpa: 0,
+          totalSesi: 0,
+        };
 
         return {
           ...obj,
@@ -373,10 +383,7 @@ export const userEnrolledCourses = async (req, res) => {
               .join(", ") ||
             null,
 
-          kehadiran: {
-            hadir,
-            totalSesi,
-          },
+          kehadiran: presensi,
         };
       }),
     );

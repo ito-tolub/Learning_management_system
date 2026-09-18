@@ -10,6 +10,7 @@ import {
   listLearningObjects,
   updateLearningObject,
   createLearningObject,
+  deleteLearningObject,
 } from '../controllers/learningObjectController.js';
 import { clerkMiddleware, requireAuth } from '@clerk/express';
 
@@ -50,5 +51,10 @@ educatorRouter.delete('/quizzes/:quizId', protectDosen, deleteQuiz)
 educatorRouter.get('/learning-objects', protectDosen, listLearningObjects)
 educatorRouter.post('/learning-objects/:courseId/:chapterId', protectDosen, createLearningObject)
 educatorRouter.put('/learning-objects/:courseId/:chapterId/:lectureId', protectDosen, updateLearningObject)
+educatorRouter.delete(
+  '/learning-objects/:courseId/:chapterId/:lectureId',
+  protectDosen,
+  deleteLearningObject
+);
 
 export default educatorRouter;

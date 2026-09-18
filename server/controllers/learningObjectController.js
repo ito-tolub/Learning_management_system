@@ -4,8 +4,8 @@ import { LectureActivity } from "../models/LectureActivity.js";
 import { MAIN_LECTURE_IDS_BY_CHAPTER } from "../utils/calculateFeedbackScore.js";
 
 const TAGS = ["V", "A", "R", "K"];
-const GRANULARITY = ["micro", "macro"];
-const COGNITIVE = ["C1", "C2", "C3", "C4", "C5", "C6"];
+const GRANULARITY = ["tersegmentasi", "utuh"];
+const COGNITIVE = ["C1-C3", "C4-C6"];
 
 /** Normalisasi & validasi vektor VARK. Mengembalikan {error} atau {value}. */
 const parseVarkVector = (input) => {
@@ -87,7 +87,7 @@ const validateMetadata = (body, { wajibLengkap = false } = {}) => {
       body.cognitiveLevel !== null &&
       !COGNITIVE.includes(body.cognitiveLevel)
     ) {
-      return { error: "Tingkat kognitif harus C1 sampai C6" };
+      return { error: "Tingkat kognitif harus C1-C3 atau C4-C6" };
     }
     patch.cognitiveLevel = body.cognitiveLevel;
   }
@@ -329,5 +329,68 @@ export const createLearningObject = async (req, res) => {
   } catch (error) {
     console.error("createLearningObject error:", error);
     return res.json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * DELETE /api/educator/learning-objects/:courseId/:chapterId/:lectureId
+ * Menghapus satu objek pembelajaran.
+ */
+export const deleteLearningObject = async (req, res) => {
+  try {
+    const { courseId, chapterId, lectureId } = req.params;
+
+    if (!mongoose.isValidObjectId(courseId)) {
+      return res.json({
+        success: false,
+        message: "courseId tidak valid",
+      });
+    }
+
+    const course = await Course.findById(courseId);
+
+    if (!course) {
+      return res.json({
+        success: false,
+        message: "Mata kuliah tidak ditemukan",
+      });
+    }
+
+    const chapter = course.courseContent.find(
+      (c) => c.chapterId === chapterId
+    );
+
+    if (!chapter) {
+      return res.json({
+        success: false,
+        message: "Pertemuan tidak ditemukan",
+      });
+    }
+    const jumlahAwal = chapter.chapterContent.length;
+    chapter.chapterContent = chapter.chapterContent.filter(
+      (lecture) => lecture.lectureId !== lectureId
+    );
+
+    if (chapter.chapterContent.length === jumlahAwal) {
+      return res.json({
+        success: false,
+        message: "Objek pembelajaran tidak ditemukan",
+      });
+    }
+    course.markModified("courseContent");
+
+    await course.save();
+    return res.json({
+      success: true,
+      message: "Objek pembelajaran berhasil dihapus",
+    });
+
+  } catch (error) {
+    console.error("deleteLearningObject error:", error);
+    return res.json({
+      success: false,
+      message: error.message,
+    });
+
   }
 };

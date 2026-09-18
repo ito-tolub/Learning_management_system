@@ -731,9 +731,9 @@ const DiscussionFeed = ({ courseName, lecturer }) => (
 const RightPanel = ({ kehadiran }) => {
   const hadir = kehadiran?.hadir ?? 0;
   const totalSesi = kehadiran?.totalSesi ?? 0;
-  const sakit = 0,
-    izin = 0,
-    alpa = 0; // ⚠️ belum ada di skema
+  const sakit = kehadiran?.sakit ?? 0;
+  const izin = kehadiran?.izin ?? 0;
+  const alpa = kehadiran?.alpa ?? 0;
 
   return (
     <aside className="cd-right-panel">
@@ -767,8 +767,7 @@ const RightPanel = ({ kehadiran }) => {
               <span>Alpa</span>
               <strong>{alpa}</strong>
             </div>
-          </div>
-          <button type="button">Lihat Detail Presensi</button>
+          </div>          
         </div>
       </section>
     </aside>
