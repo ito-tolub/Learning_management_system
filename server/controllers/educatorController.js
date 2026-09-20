@@ -18,6 +18,8 @@ import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
 import {Attendance, EXPERIMENT_MEETINGS, PRESENT_STATUSES,
 } from "../models/Attendance.js";
 import { getUserVarkVectorBulk } from "../utils/getUserVarkVector.js";
+import { RecommendationSnapshot } from "../models/RecommendationSnapshot.js";
+import { getFrozenBulk } from "../utils/freezeRecommendation.js";
 
 export const verifyNipAndBecomeEducator = async (req, res) => {
   try {
@@ -722,6 +724,19 @@ export const getStudentEngagementScore = async (req, res) => {
       users.map((u) => u._id),
     );
 
+    const snapshots = await RecommendationSnapshot.find({}).lean();
+
+    // userId::courseId -> Map(chapterId -> [lectureId])
+    const frozenByUserCourse = new Map();
+
+    for (const s of snapshots) {
+      const kunci = `${s.userId}::${s.courseId}`;
+      if (!frozenByUserCourse.has(kunci)) {
+        frozenByUserCourse.set(kunci, new Map());
+      }
+      frozenByUserCourse.get(kunci).set(s.chapterId, s.recommendedLectureIds);
+    }
+
     for (const praja of semuaPraja) {
       const nppStr = String(praja.npp || "").trim();
 
@@ -759,6 +774,10 @@ export const getStudentEngagementScore = async (req, res) => {
 
       let outsideRecommendationDurationSec = 0;
 
+      // Adherence dipecah per pertemuan (objek dikelompokkan menurut
+      // keanggotaan pertemuannya, bukan waktu aksesnya).
+      let adherenceByChapter = [];
+
       if (user) {
         const userCourseIds = (user.enrolledCourses || [])
           .map((id) => id.toString())
@@ -793,6 +812,8 @@ export const getStudentEngagementScore = async (req, res) => {
               null,
             mentalKepribadian: praja?.mentalKepribadian,
             activities,
+            frozenByChapter:
+              frozenByUserCourse.get(`${user._id}::${courseId}`) || null,
           });
 
           grandInteractionEarned += targetResult.interactionEarned;
@@ -851,10 +872,14 @@ export const getStudentEngagementScore = async (req, res) => {
             outsideRecommendationDurationSec +=
               targetResult.recommendationAdherence
                 .outsideRecommendationDurationSec;
+
+            adherenceByChapter = adherenceByChapter.concat(
+              targetResult.adherenceByChapter || [],
+            );
           }
         }
       }
-
+      
       const interaksi =
         grandInteractionPossible > 0
           ? Math.min(
@@ -971,6 +996,8 @@ export const getStudentEngagementScore = async (req, res) => {
           details: explorationDetails,
         },
         recommendationAdherence,
+
+        adherenceByChapter,
       });
     }
     sesData.sort((a, b) => b.ses - a.ses);

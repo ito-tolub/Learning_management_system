@@ -886,6 +886,43 @@ const Player = () => {
     });
   };
 
+  // Daftar rekomendasi BEKU dari server (hanya kelas G2).
+  const [frozenIds, setFrozenIds] = useState([]);
+
+  useEffect(() => {
+    const chapterId = courseData?.courseContent?.[selectedChapter]?.chapterId;
+
+    if (!recommendationEnabled || !courseId || !chapterId) {
+      setFrozenIds([]);
+      return;
+    }
+
+    const ambil = async () => {
+      try {
+        const token = await getToken();
+        const { data } = await axios.get(
+          backendUrl + "/api/user/frozen-recommendation",
+          {
+            params: { courseId, chapterId },
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+        setFrozenIds(data.success ? data.recommendedLectureIds || [] : []);
+      } catch (error) {
+        console.error("Gagal mengambil rekomendasi beku:", error);
+        setFrozenIds([]);
+      }
+    };
+
+    ambil();
+  }, [
+    recommendationEnabled,
+    courseId,
+    courseData,
+    selectedChapter,
+    backendUrl,
+  ]);
+
   useEffect(() => {
     if (enrolledCourses.length > 0) {
       getCourseData();
@@ -1634,16 +1671,21 @@ const Player = () => {
     );
   }
 
-  // Empat objek dengan hybrid score tertinggi hanya untuk G2.
-  const rekomendasiAkhir = recommendationEnabled
-    ? scoredLectures.slice(0, RECOMMENDATION_LIMIT).map((lecture, index) => ({
-        ...lecture,
-        rank: index + 1,
-        similarityPercentage: Number(
-          (lecture._varkSimilarity * 100).toFixed(2),
-        ),
-      }))
-    : [];
+    // Daftar BEKU dari server. Urutan mengikuti peringkat saat dibekukan.
+  const rekomendasiAkhir =
+    recommendationEnabled && frozenIds.length > 0
+      ? frozenIds
+          .map((id) =>
+            recommendationCandidates.find(
+              (lecture) => lecture.lectureId === id,
+            ),
+          )
+          .filter(Boolean)
+          .map((lecture, index) => ({
+            ...lecture,
+            rank: index + 1,
+          }))
+      : [];
 
   // Gunakan indeks sumber, bukan lectureId, karena data masih mungkin
   // mempunyai lectureId yang sama.

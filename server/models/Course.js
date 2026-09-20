@@ -51,6 +51,10 @@ const courseSchema = new mongoose.Schema(
       startTime: { type: String, default: null }, // "08:00"
       endTime: { type: String, default: null }, // "09:40"
     },
+    meetingAnchor: {
+      meetingNumber: { type: Number, default: null },
+      date: { type: Date, default: null },
+    },
 
     // Override nama dosen utk tampilan (opsional; menang atas virtual 'pengajar')
     pengajarNama: { type: String, default: null },
@@ -65,8 +69,8 @@ const courseSchema = new mongoose.Schema(
 
 courseSchema.virtual("pengajar", {
   ref: "Pegawai",
-  localField: "educator", 
-  foreignField: "nip", 
+  localField: "educator",
+  foreignField: "nip",
   justOne: false,
 });
 

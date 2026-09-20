@@ -8,6 +8,7 @@ import Pegawai from "../models/pegawai.js";
 import { clerkClient } from "@clerk/express";
 import { getUserVarkVector } from "../utils/getUserVarkVector.js";
 import { Attendance } from "../models/Attendance.js";
+import { ensureFrozenRecommendation } from "../utils/freezeRecommendation.js";
 
 export const updateCourseProgress = async (req, res) => {
   try {
@@ -569,6 +570,24 @@ export const getMyAdaptiveVark = async (req, res) => {
     });
   } catch (error) {
     console.error("getMyAdaptiveVark error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const getMyFrozenRecommendation = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { courseId, chapterId } = req.query;
+
+    const ids = await ensureFrozenRecommendation({
+      userId,
+      courseId,
+      chapterId,
+    });
+
+    return res.json({ success: true, recommendedLectureIds: ids || [] });
+  } catch (error) {
+    console.error("getMyFrozenRecommendation error:", error);
     return res.json({ success: false, message: error.message });
   }
 };

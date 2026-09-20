@@ -19,348 +19,160 @@ export const MAIN_LECTURE_IDS_BY_CHAPTER = {
 const normalizeVark = (value) => {
   if (!value) return null;
 
-  const normalized = String(value)
-    .toLowerCase()
-    .trim();
+  const normalized = String(value).toLowerCase().trim();
 
-  if (
-    normalized === "v" ||
-    normalized.startsWith("vis")
-  ) {
+  if (normalized === "v" || normalized.startsWith("vis")) {
     return "V";
   }
 
-  if (
-    normalized === "a" ||
-    normalized.startsWith("aud")
-  ) {
+  if (normalized === "a" || normalized.startsWith("aud")) {
     return "A";
   }
 
-  if (
-    normalized === "r" ||
-    normalized.startsWith("read")
-  ) {
+  if (normalized === "r" || normalized.startsWith("read")) {
     return "R";
   }
 
-  if (
-    normalized === "k" ||
-    normalized.startsWith("kine")
-  ) {
+  if (normalized === "k" || normalized.startsWith("kine")) {
     return "K";
   }
 
-  return String(value)
-    .toUpperCase()
-    .charAt(0);
+  return String(value).toUpperCase().charAt(0);
 };
 
-const cosineSimilarity = (
-  userVector,
-  objectVector,
-) => {
+const cosineSimilarity = (userVector, objectVector) => {
   if (!userVector || !objectVector) {
     return 0;
   }
 
-  const keys = [
-    "V",
-    "A",
-    "R",
-    "K",
-  ];
+  const keys = ["V", "A", "R", "K"];
 
-  const user = keys.map(
-    (key) =>
-      Number(
-        userVector[key] || 0,
-      ),
-  );
+  const user = keys.map((key) => Number(userVector[key] || 0));
 
-  const object = keys.map(
-    (key) =>
-      Number(
-        objectVector[key] || 0,
-      ),
-  );
+  const object = keys.map((key) => Number(objectVector[key] || 0));
 
   const dot = user.reduce(
-    (
-      sum,
-      value,
-      index,
-    ) =>
-      sum +
-      value * object[index],
+    (sum, value, index) => sum + value * object[index],
     0,
   );
 
-  const userNorm = Math.sqrt(
-    user.reduce(
-      (sum, value) =>
-        sum + value ** 2,
-      0,
-    ),
-  );
+  const userNorm = Math.sqrt(user.reduce((sum, value) => sum + value ** 2, 0));
 
   const objectNorm = Math.sqrt(
-    object.reduce(
-      (sum, value) =>
-        sum + value ** 2,
-      0,
-    ),
+    object.reduce((sum, value) => sum + value ** 2, 0),
   );
 
-  if (
-    userNorm === 0 ||
-    objectNorm === 0
-  ) {
+  if (userNorm === 0 || objectNorm === 0) {
     return 0;
   }
 
-  return (
-    dot /
-    (
-      userNorm *
-      objectNorm
-    )
-  );
+  return dot / (userNorm * objectNorm);
 };
 
-const getInstructionalProfile = (
-  mentalKepribadian,
-) => {
-  const score = Number(
-    mentalKepribadian,
-  );
+const getInstructionalProfile = (mentalKepribadian) => {
+  const score = Number(mentalKepribadian);
 
-  if (
-    !Number.isFinite(score)
-  ) {
+  if (!Number.isFinite(score)) {
     return null;
   }
 
   return {
     contentGranularity:
-      score >=
-      MENTAL_REFERENCE_VALUE
-        ? "utuh"
-        : "tersegmentasi",
+      score >= MENTAL_REFERENCE_VALUE ? "utuh" : "tersegmentasi",
 
-    cognitiveLevel:
-      score >=
-      MENTAL_REFERENCE_VALUE
-        ? "C4-C6"
-        : "C1-C3",
+    cognitiveLevel: score >= MENTAL_REFERENCE_VALUE ? "C4-C6" : "C1-C3",
   };
 };
 
-const getInstructionalCompatibility = (
-  lecture,
-  profile,
-) => {
-  if (
-    !lecture ||
-    !profile
-  ) {
+const getInstructionalCompatibility = (lecture, profile) => {
+  if (!lecture || !profile) {
     return 0;
   }
 
-  const modality =
-    normalizeVark(
-      lecture.tags,
-    );
+  const modality = normalizeVark(lecture.tags);
 
   if (modality === "K") {
-    return (
-      lecture.cognitiveLevel ===
-      profile.cognitiveLevel
-        ? 1
-        : 0
-    );
+    return lecture.cognitiveLevel === profile.cognitiveLevel ? 1 : 0;
   }
 
-  if (
-    [
-      "V",
-      "A",
-      "R",
-    ].includes(modality)
-  ) {
-    return (
-      lecture.contentGranularity ===
-      profile.contentGranularity
-        ? 1
-        : 0
-    );
+  if (["V", "A", "R"].includes(modality)) {
+    return lecture.contentGranularity === profile.contentGranularity ? 1 : 0;
   }
 
   return 0;
 };
 
-const scoreLecture = ({
-  lecture,
-  userVarkVector,
-  instructionalProfile,
-}) => {
-  const varkSimilarity =
-    cosineSimilarity(
-      userVarkVector,
-      lecture?.varkvektor,
-    );
+const scoreLecture = ({ lecture, userVarkVector, instructionalProfile }) => {
+  const varkSimilarity = cosineSimilarity(userVarkVector, lecture?.varkvektor);
 
-  const instructionalCompatibility =
-    getInstructionalCompatibility(
-      lecture,
-      instructionalProfile,
-    );
+  const instructionalCompatibility = getInstructionalCompatibility(
+    lecture,
+    instructionalProfile,
+  );
 
   const hybridScore =
-    (
-      HYBRID_WEIGHT.vark *
-      varkSimilarity
-    ) +
-    (
-      HYBRID_WEIGHT.instructional *
-      instructionalCompatibility
-    );
+    HYBRID_WEIGHT.vark * varkSimilarity +
+    HYBRID_WEIGHT.instructional * instructionalCompatibility;
 
   return {
     varkSimilarity,
     instructionalCompatibility,
     hybridScore,
 
-    hybridPercentage:
-      Number(
-        (
-          hybridScore *
-          100
-        ).toFixed(2),
-      ),
+    hybridPercentage: Number((hybridScore * 100).toFixed(2)),
   };
 };
 
-const numberOrInfinity = (
-  value,
-) => {
-  const number =
-    Number(value);
+const numberOrInfinity = (value) => {
+  const number = Number(value);
 
-  return Number.isFinite(
-    number,
-  )
-    ? number
-    : Number.POSITIVE_INFINITY;
+  return Number.isFinite(number) ? number : Number.POSITIVE_INFINITY;
 };
 
-const getConfiguredMainIds = (
-  chapter,
-) => {
-  const configured =
-    MAIN_LECTURE_IDS_BY_CHAPTER[
-      chapter?.chapterId
-    ];
+const getConfiguredMainIds = (chapter) => {
+  const configured = MAIN_LECTURE_IDS_BY_CHAPTER[chapter?.chapterId];
 
-  if (
-    Array.isArray(
-      configured,
-    ) &&
-    configured.length > 0
-  ) {
-    return configured.map(
-      String,
-    );
+  if (Array.isArray(configured) && configured.length > 0) {
+    return configured.map(String);
   }
 
-  if (
-    Array.isArray(
-      chapter?.mainLectureIds,
-    )
-  ) {
-    return (
-      chapter.mainLectureIds
-        .map(String)
-    );
+  if (Array.isArray(chapter?.mainLectureIds)) {
+    return chapter.mainLectureIds.map(String);
   }
 
   return [];
 };
 
-const getChapterLecturesWithIndex = (
-  chapter,
-) =>
-  (
-    Array.isArray(
-      chapter?.chapterContent,
-    )
-      ? chapter.chapterContent
-      : []
-  ).map(
-    (
-      lecture,
-      index,
-    ) => ({
+const getChapterLecturesWithIndex = (chapter) =>
+  (Array.isArray(chapter?.chapterContent) ? chapter.chapterContent : []).map(
+    (lecture, index) => ({
       ...lecture,
       _sourceIndex: index,
     }),
   );
 
-const getMainLectures = (
-  chapter,
-) => {
-  const lectures =
-    getChapterLecturesWithIndex(
-      chapter,
-    );
+const getMainLectures = (chapter) => {
+  const lectures = getChapterLecturesWithIndex(chapter);
 
-  const mainIds =
-    getConfiguredMainIds(
-      chapter,
-    );
+  const mainIds = getConfiguredMainIds(chapter);
 
   return mainIds
-    .map(
-      (lectureId) => {
-        const matchingLectures =
-          lectures
-            .filter(
-              (lecture) =>
-                String(
-                  lecture
-                    ?.lectureId ||
-                    "",
-                ) ===
-                lectureId,
-            )
-            .sort(
-              (a, b) => {
-                const orderDiff =
-                  numberOrInfinity(
-                    a.lectureOrder,
-                  ) -
-                  numberOrInfinity(
-                    b.lectureOrder,
-                  );
+    .map((lectureId) => {
+      const matchingLectures = lectures
+        .filter((lecture) => String(lecture?.lectureId || "") === lectureId)
+        .sort((a, b) => {
+          const orderDiff =
+            numberOrInfinity(a.lectureOrder) - numberOrInfinity(b.lectureOrder);
 
-                if (
-                  orderDiff !== 0
-                ) {
-                  return orderDiff;
-                }
+          if (orderDiff !== 0) {
+            return orderDiff;
+          }
 
-                return (
-                  a._sourceIndex -
-                  b._sourceIndex
-                );
-              },
-            );
+          return a._sourceIndex - b._sourceIndex;
+        });
 
-        return (
-          matchingLectures[0]
-        );
-      },
-    )
+      return matchingLectures[0];
+    })
     .filter(Boolean);
 };
 
@@ -369,111 +181,56 @@ const getMainLectures = (
  * ID materi utama tidak boleh
  * dihitung lagi sebagai tambahan.
  */
-const getUniqueNonMainLectures = (
-  chapter,
-  mainLectures,
-) => {
-  const lectures =
-    getChapterLecturesWithIndex(
-      chapter,
-    );
+const getUniqueNonMainLectures = (chapter, mainLectures) => {
+  const lectures = getChapterLecturesWithIndex(chapter);
 
-  const mainIndexes =
-    new Set(
-      mainLectures.map(
-        (lecture) =>
-          lecture._sourceIndex,
-      ),
-    );
+  const mainIndexes = new Set(
+    mainLectures.map((lecture) => lecture._sourceIndex),
+  );
 
-  const mainIds =
-    new Set(
-      mainLectures.map(
-        (lecture) =>
-          String(
-            lecture.lectureId,
-          ),
-      ),
-    );
+  const mainIds = new Set(
+    mainLectures.map((lecture) => String(lecture.lectureId)),
+  );
 
-  const byId =
-    new Map();
+  const byId = new Map();
 
-  for (
-    const lecture of
-      lectures
-  ) {
-    if (
-      !lecture?.lectureId
-    ) {
+  for (const lecture of lectures) {
+    if (!lecture?.lectureId) {
       continue;
     }
 
-    if (
-      mainIndexes.has(
-        lecture._sourceIndex,
-      )
-    ) {
+    if (mainIndexes.has(lecture._sourceIndex)) {
       continue;
     }
 
-    const lectureId =
-      String(
-        lecture.lectureId,
-      );
+    const lectureId = String(lecture.lectureId);
 
-    if (
-      mainIds.has(
-        lectureId,
-      )
-    ) {
+    if (mainIds.has(lectureId)) {
       continue;
     }
 
-    const existing =
-      byId.get(
-        lectureId,
-      );
+    const existing = byId.get(lectureId);
 
     if (!existing) {
-      byId.set(
-        lectureId,
-        lecture,
-      );
+      byId.set(lectureId, lecture);
 
       continue;
     }
 
-    const currentOrder =
-      numberOrInfinity(
-        lecture.lectureOrder,
-      );
+    const currentOrder = numberOrInfinity(lecture.lectureOrder);
 
-    const existingOrder =
-      numberOrInfinity(
-        existing.lectureOrder,
-      );
+    const existingOrder = numberOrInfinity(existing.lectureOrder);
 
     if (
-      currentOrder <
-        existingOrder ||
-      (
-        currentOrder ===
-          existingOrder &&
-        lecture._sourceIndex <
-          existing._sourceIndex
-      )
+      currentOrder < existingOrder ||
+      (currentOrder === existingOrder &&
+        lecture._sourceIndex < existing._sourceIndex)
     ) {
-      byId.set(
-        lectureId,
-        lecture,
-      );
+      byId.set(lectureId, lecture);
     }
   }
 
-  return [
-    ...byId.values(),
-  ];
+  return [...byId.values()];
 };
 
 /*
@@ -481,33 +238,19 @@ const getUniqueNonMainLectures = (
  * yang dikeluarkan hanya sourceIndex
  * materi utama.
  */
-const getG2RecommendationCandidates = (
-  chapter,
-  mainLectures,
-) => {
-  const lectures =
-    getChapterLecturesWithIndex(
-      chapter,
-    );
+const getG2RecommendationCandidates = (chapter, mainLectures) => {
+  const lectures = getChapterLecturesWithIndex(chapter);
 
-  const mainIndexes =
-    new Set(
-      mainLectures.map(
-        (lecture) =>
-          lecture._sourceIndex,
-      ),
-    );
+  const mainIndexes = new Set(
+    mainLectures.map((lecture) => lecture._sourceIndex),
+  );
 
   return lectures.filter(
-    (lecture) =>
-      lecture?.lectureId &&
-      !mainIndexes.has(
-        lecture._sourceIndex,
-      ),
+    (lecture) => lecture?.lectureId && !mainIndexes.has(lecture._sourceIndex),
   );
 };
 
-const getG2Recommendations = ({
+export const getG2Recommendations = ({
   chapter,
   mainLectures,
   userVarkVector,
@@ -517,199 +260,97 @@ const getG2Recommendations = ({
     return [];
   }
 
-  const instructionalProfile =
-    getInstructionalProfile(
-      mentalKepribadian,
-    );
+  const instructionalProfile = getInstructionalProfile(mentalKepribadian);
 
-  const candidates =
-    getG2RecommendationCandidates(
-      chapter,
-      mainLectures,
-    );
+  const candidates = getG2RecommendationCandidates(chapter, mainLectures);
 
   return candidates
-    .filter(
-      (lecture) =>
-        lecture?.varkvektor,
-    )
+    .filter((lecture) => lecture?.varkvektor)
     .map((lecture) => {
-      const score =
-        scoreLecture({
-          lecture,
-          userVarkVector,
-          instructionalProfile,
-        });
+      const score = scoreLecture({
+        lecture,
+        userVarkVector,
+        instructionalProfile,
+      });
 
       return {
         ...lecture,
 
-        _varkSimilarity:
-          score.varkSimilarity,
+        _varkSimilarity: score.varkSimilarity,
 
-        _instructionalCompatibility:
-          score
-            .instructionalCompatibility,
+        _instructionalCompatibility: score.instructionalCompatibility,
 
-        _hybridScore:
-          score.hybridScore,
+        _hybridScore: score.hybridScore,
 
-        _hybridPercentage:
-          score.hybridPercentage,
+        _hybridPercentage: score.hybridPercentage,
       };
     })
     .sort((a, b) => {
-      if (
-        b._hybridScore !==
-        a._hybridScore
-      ) {
-        return (
-          b._hybridScore -
-          a._hybridScore
-        );
+      if (b._hybridScore !== a._hybridScore) {
+        return b._hybridScore - a._hybridScore;
       }
 
-      return (
-        a._sourceIndex -
-        b._sourceIndex
-      );
+      return a._sourceIndex - b._sourceIndex;
     })
-    .slice(
-      0,
-      RECOMMENDATION_LIMIT,
-    )
-    .map(
-      (
-        lecture,
-        index,
-      ) => ({
-        ...lecture,
-        rank: index + 1,
-      }),
-    );
+    .slice(0, RECOMMENDATION_LIMIT)
+    .map((lecture, index) => ({
+      ...lecture,
+      rank: index + 1,
+    }));
 };
 
-const activityMapFrom = (
-  activities = [],
-) => {
-  const activityMap =
-    new Map();
+const activityMapFrom = (activities = []) => {
+  const activityMap = new Map();
 
-  for (
-    const activity of
-      activities || []
-  ) {
-    if (
-      !activity?.lectureId
-    ) {
+  for (const activity of activities || []) {
+    if (!activity?.lectureId) {
       continue;
     }
 
-    const lectureId =
-      String(
-        activity.lectureId,
-      );
+    const lectureId = String(activity.lectureId);
 
-    const existing =
-      activityMap.get(
-        lectureId,
-      );
+    const existing = activityMap.get(lectureId);
 
     if (!existing) {
-      activityMap.set(
-        lectureId,
-        activity,
-      );
+      activityMap.set(lectureId, activity);
 
       continue;
     }
 
-    activityMap.set(
-      lectureId,
-      {
-        ...existing,
+    activityMap.set(lectureId, {
+      ...existing,
 
-        accessCount:
-          Number(
-            existing
-              .accessCount ||
-              0,
-          ) +
-          Number(
-            activity
-              .accessCount ||
-              0,
-          ),
+      accessCount:
+        Number(existing.accessCount || 0) + Number(activity.accessCount || 0),
 
-        totalDuration:
-          Number(
-            existing
-              .totalDuration ||
-              0,
-          ) +
-          Number(
-            activity
-              .totalDuration ||
-              0,
-          ),
+      totalDuration:
+        Number(existing.totalDuration || 0) +
+        Number(activity.totalDuration || 0),
 
-        createdAt:
-          new Date(
-            existing.createdAt ||
-              8640000000000000,
-          ) <=
-          new Date(
-            activity.createdAt ||
-              8640000000000000,
-          )
-            ? existing.createdAt
-            : activity.createdAt,
-      },
-    );
+      createdAt:
+        new Date(existing.createdAt || 8640000000000000) <=
+        new Date(activity.createdAt || 8640000000000000)
+          ? existing.createdAt
+          : activity.createdAt,
+    });
   }
 
   return activityMap;
 };
 
-const interactionMetrics = (
-  lecture,
-  activity,
-) => {
-  const expectedDurSec =
-    Math.max(
-      Number(
-        lecture
-          ?.lectureDuration ||
-          0,
-      ) * 60,
-      0,
-    );
+const interactionMetrics = (lecture, activity) => {
+  const expectedDurSec = Math.max(
+    Number(lecture?.lectureDuration || 0) * 60,
+    0,
+  );
 
-  const rawActualDurSec =
-    Math.max(
-      Number(
-        activity
-          ?.totalDuration ||
-          0,
-      ),
-      0,
-    );
+  const rawActualDurSec = Math.max(Number(activity?.totalDuration || 0), 0);
 
   const effectiveActualDurSec =
-    expectedDurSec > 0
-      ? Math.min(
-          rawActualDurSec,
-          expectedDurSec,
-        )
-      : 0;
+    expectedDurSec > 0 ? Math.min(rawActualDurSec, expectedDurSec) : 0;
 
   const ratio =
-    expectedDurSec > 0
-      ? (
-          effectiveActualDurSec /
-          expectedDurSec
-        )
-      : null;
+    expectedDurSec > 0 ? effectiveActualDurSec / expectedDurSec : null;
 
   return {
     expectedDurSec,
@@ -717,45 +358,15 @@ const interactionMetrics = (
     effectiveActualDurSec,
     ratio,
 
-    accessCount:
-      Math.max(
-        Number(
-          activity
-            ?.accessCount ||
-            0,
-        ),
-        0,
-      ),
+    accessCount: Math.max(Number(activity?.accessCount || 0), 0),
 
-    firstAccessAt:
-      activity?.createdAt ||
-      null,
+    firstAccessAt: activity?.createdAt || null,
   };
 };
 
-const hasActualAccess = (
-  activity,
-) =>
-  (
-    Math.max(
-      Number(
-        activity
-          ?.accessCount ||
-          0,
-      ),
-      0,
-    ) > 0
-  ) ||
-  (
-    Math.max(
-      Number(
-        activity
-          ?.totalDuration ||
-          0,
-      ),
-      0,
-    ) > 0
-  );
+const hasActualAccess = (activity) =>
+  Math.max(Number(activity?.accessCount || 0), 0) > 0 ||
+  Math.max(Number(activity?.totalDuration || 0), 0) > 0;
 
 const makeTargetDetail = ({
   lecture,
@@ -765,89 +376,45 @@ const makeTargetDetail = ({
   activityMap,
   recommendation = null,
 }) => {
-  const lectureId =
-    String(
-      lecture.lectureId,
-    );
+  const lectureId = String(lecture.lectureId);
 
-  const activity =
-    activityMap.get(
-      lectureId,
-    );
+  const activity = activityMap.get(lectureId);
 
-  const metrics =
-    interactionMetrics(
-      lecture,
-      activity,
-    );
+  const metrics = interactionMetrics(lecture, activity);
 
   return {
-    chapterId:
-      chapter.chapterId,
+    chapterId: chapter.chapterId,
 
-    chapterOrder:
-      Number(
-        chapter.chapterOrder ||
-          0,
-      ),
+    chapterOrder: Number(chapter.chapterOrder || 0),
 
     lectureId,
 
-    lectureTitle:
-      lecture.lectureTitle ||
-      lectureId,
+    lectureTitle: lecture.lectureTitle || lectureId,
 
     role,
 
-    selesai:
-      completedSet.has(
-        lectureId,
-      )
-        ? 1
-        : 0,
+    selesai: completedSet.has(lectureId) ? 1 : 0,
 
-    accessCount:
-      metrics.accessCount,
+    accessCount: metrics.accessCount,
 
-    rawActualDurSec:
-      metrics.rawActualDurSec,
+    rawActualDurSec: metrics.rawActualDurSec,
 
-    actualDurSec:
-      metrics
-        .effectiveActualDurSec,
+    actualDurSec: metrics.effectiveActualDurSec,
 
-    expectedDurSec:
-      metrics.expectedDurSec,
+    expectedDurSec: metrics.expectedDurSec,
 
-    interactionRatio:
-      metrics.ratio,
+    interactionRatio: metrics.ratio,
 
     interactionPercent:
-      metrics.ratio == null
-        ? null
-        : Number(
-            (
-              metrics.ratio *
-              100
-            ).toFixed(1),
-          ),
+      metrics.ratio == null ? null : Number((metrics.ratio * 100).toFixed(1)),
 
-    firstAccessAt:
-      metrics.firstAccessAt,
+    firstAccessAt: metrics.firstAccessAt,
 
-    recommendationRank:
-      recommendation?.rank ??
-      null,
+    recommendationRank: recommendation?.rank ?? null,
 
-    hybridScore:
-      recommendation
-        ?._hybridScore ??
-      null,
+    hybridScore: recommendation?._hybridScore ?? null,
 
-    hybridPercentage:
-      recommendation
-        ?._hybridPercentage ??
-      null,
+    hybridPercentage: recommendation?._hybridPercentage ?? null,
   };
 };
 
@@ -860,173 +427,77 @@ const makeTargetDetail = ({
  * LectureActivity.createdAt menjadi
  * target SES.
  */
-const chooseG1AdditionalTargets = ({
-  chapter,
-  mainLectures,
-  activityMap,
-}) => {
-  const candidates =
-    getUniqueNonMainLectures(
-      chapter,
-      mainLectures,
-    );
+const chooseG1AdditionalTargets = ({ chapter, mainLectures, activityMap }) => {
+  const candidates = getUniqueNonMainLectures(chapter, mainLectures);
 
   return candidates
     .map((lecture) => {
-      const lectureId =
-        String(
-          lecture.lectureId,
-        );
+      const lectureId = String(lecture.lectureId);
 
-      const activity =
-        activityMap.get(
-          lectureId,
-        );
+      const activity = activityMap.get(lectureId);
 
       return {
         ...lecture,
-        _activity:
-          activity,
+        _activity: activity,
 
-        _firstAccessAt:
-          activity?.createdAt ||
-          null,
+        _firstAccessAt: activity?.createdAt || null,
       };
     })
-    .filter(
-      (lecture) =>
-        hasActualAccess(
-          lecture._activity,
-        ),
-    )
+    .filter((lecture) => hasActualAccess(lecture._activity))
     .sort((a, b) => {
-      const timeA =
-        a._firstAccessAt
-          ? new Date(
-              a._firstAccessAt,
-            ).getTime()
-          : Number
-              .POSITIVE_INFINITY;
+      const timeA = a._firstAccessAt
+        ? new Date(a._firstAccessAt).getTime()
+        : Number.POSITIVE_INFINITY;
 
-      const timeB =
-        b._firstAccessAt
-          ? new Date(
-              b._firstAccessAt,
-            ).getTime()
-          : Number
-              .POSITIVE_INFINITY;
+      const timeB = b._firstAccessAt
+        ? new Date(b._firstAccessAt).getTime()
+        : Number.POSITIVE_INFINITY;
 
-      if (
-        timeA !== timeB
-      ) {
+      if (timeA !== timeB) {
         return timeA - timeB;
       }
 
       const orderDiff =
-        numberOrInfinity(
-          a.lectureOrder,
-        ) -
-        numberOrInfinity(
-          b.lectureOrder,
-        );
+        numberOrInfinity(a.lectureOrder) - numberOrInfinity(b.lectureOrder);
 
-      if (
-        orderDiff !== 0
-      ) {
+      if (orderDiff !== 0) {
         return orderDiff;
       }
 
-      return (
-        a._sourceIndex -
-        b._sourceIndex
-      );
+      return a._sourceIndex - b._sourceIndex;
     })
-    .slice(
-      0,
-      RECOMMENDATION_LIMIT,
-    );
+    .slice(0, RECOMMENDATION_LIMIT);
 };
 
-const isExperimentChapter = (
-  chapter,
-) =>
-  Boolean(
-    MAIN_LECTURE_IDS_BY_CHAPTER[
-      chapter?.chapterId
-    ],
-  );
+const isExperimentChapter = (chapter) =>
+  Boolean(MAIN_LECTURE_IDS_BY_CHAPTER[chapter?.chapterId]);
 
-const sortExplorationTop4 = (
-  details,
-) =>
-  [
-    ...details,
-  ]
+const sortExplorationTop4 = (details) =>
+  [...details]
     .sort((a, b) => {
-      const interactionA =
-        Number.isFinite(
-          Number(
-            a.interactionPercent,
-          ),
-        )
-          ? Number(
-              a.interactionPercent,
-            )
-          : -1;
+      const interactionA = Number.isFinite(Number(a.interactionPercent))
+        ? Number(a.interactionPercent)
+        : -1;
 
-      const interactionB =
-        Number.isFinite(
-          Number(
-            b.interactionPercent,
-          ),
-        )
-          ? Number(
-              b.interactionPercent,
-            )
-          : -1;
+      const interactionB = Number.isFinite(Number(b.interactionPercent))
+        ? Number(b.interactionPercent)
+        : -1;
 
-      if (
-        interactionB !==
-        interactionA
-      ) {
-        return (
-          interactionB -
-          interactionA
-        );
+      if (interactionB !== interactionA) {
+        return interactionB - interactionA;
       }
 
-      if (
-        b.effectiveDurationSec !==
-        a.effectiveDurationSec
-      ) {
-        return (
-          b.effectiveDurationSec -
-          a.effectiveDurationSec
-        );
+      if (b.effectiveDurationSec !== a.effectiveDurationSec) {
+        return b.effectiveDurationSec - a.effectiveDurationSec;
       }
 
-      if (
-        b.accessCount !==
-        a.accessCount
-      ) {
-        return (
-          b.accessCount -
-          a.accessCount
-        );
+      if (b.accessCount !== a.accessCount) {
+        return b.accessCount - a.accessCount;
       }
 
-      return String(
-        a.lectureId,
-      ).localeCompare(
-        String(
-          b.lectureId,
-        ),
-      );
+      return String(a.lectureId).localeCompare(String(b.lectureId));
     })
-    .slice(
-      0,
-      RECOMMENDATION_LIMIT,
-    );
+    .slice(0, RECOMMENDATION_LIMIT);
 
 export const calculateTargetEngagement = ({
   course,
@@ -1035,26 +506,15 @@ export const calculateTargetEngagement = ({
   userVarkVector = null,
   mentalKepribadian,
   activities = [],
+  frozenByChapter = null,
 }) => {
-  const normalizedClass =
-    String(
-      kelas || "",
-    )
-      .trim()
-      .toUpperCase();
+  const normalizedClass = String(kelas || "")
+    .trim()
+    .toUpperCase();
 
-  const completedSet =
-    new Set(
-      (
-        lectureCompleted ||
-        []
-      ).map(String),
-    );
+  const completedSet = new Set((lectureCompleted || []).map(String));
 
-  const activityMap =
-    activityMapFrom(
-      activities,
-    );
+  const activityMap = activityMapFrom(activities);
 
   let completionEarned = 0;
   let completionPossible = 0;
@@ -1066,189 +526,116 @@ export const calculateTargetEngagement = ({
   const recommendationDetails = [];
   const chapterDetails = [];
 
-  const allExperimentLectureIds =
-    new Set();
+  const allExperimentLectureIds = new Set();
 
-  const targetLectureIds =
-    new Set();
+  const targetLectureIds = new Set();
 
-  const experimentLectureLookup =
-    new Map();
+  const experimentLectureLookup = new Map();
 
-  const chapters =
-    (
-      course
-        ?.courseContent ||
-      []
-    ).filter(
-      isExperimentChapter,
-    );
+  const chapters = (course?.courseContent || []).filter(isExperimentChapter);
 
-  for (
-    const chapter of
-      chapters
-  ) {
-    const mainLectures =
-      getMainLectures(
-        chapter,
-      );
+  for (const chapter of chapters) {
+    const mainLectures = getMainLectures(chapter);
 
-    const g1NonMainLectures =
-      getUniqueNonMainLectures(
-        chapter,
-        mainLectures,
-      );
+    const g1NonMainLectures = getUniqueNonMainLectures(chapter, mainLectures);
 
-    const allChapterLectures =
-      getChapterLecturesWithIndex(
-        chapter,
-      );
+    const allChapterLectures = getChapterLecturesWithIndex(chapter);
 
-    for (
-      const lecture of
-        allChapterLectures
-    ) {
-      if (
-        !lecture?.lectureId
-      ) {
+    for (const lecture of allChapterLectures) {
+      if (!lecture?.lectureId) {
         continue;
       }
 
-      const lectureId =
-        String(
-          lecture.lectureId,
-        );
+      const lectureId = String(lecture.lectureId);
 
-      allExperimentLectureIds
-        .add(
-          lectureId,
-        );
+      allExperimentLectureIds.add(lectureId);
 
-      if (
-        !experimentLectureLookup
-          .has(
-            lectureId,
-          )
-      ) {
-        experimentLectureLookup
-          .set(
-            lectureId,
-            {
-              lecture,
-              chapter,
-            },
-          );
+      if (!experimentLectureLookup.has(lectureId)) {
+        experimentLectureLookup.set(lectureId, {
+          lecture,
+          chapter,
+        });
       }
     }
 
-    const mainDetails =
-      mainLectures.map(
-        (lecture) =>
-          makeTargetDetail({
-            lecture,
-            chapter,
-            role: "main",
-            completedSet,
-            activityMap,
-          }),
-      );
+    const mainDetails = mainLectures.map((lecture) =>
+      makeTargetDetail({
+        lecture,
+        chapter,
+        role: "main",
+        completedSet,
+        activityMap,
+      }),
+    );
 
     let additionalTargets = [];
     let additionalQuota = 0;
 
-    if (
-      normalizedClass ===
-      "G2"
-    ) {
-      additionalTargets =
-        getG2Recommendations({
+    if (normalizedClass === "G2") {
+      const beku = frozenByChapter?.get(chapter.chapterId);
+
+      if (beku && beku.length > 0) {
+        // Daftar BEKU: urutan dipertahankan sesuai peringkat saat dibekukan
+        const byId = new Map(
+          (chapter.chapterContent || []).map((l) => [l.lectureId, l]),
+        );
+
+        additionalTargets = beku.map((id) => byId.get(id)).filter(Boolean);
+      } else {
+        // Belum dibekukan (mis. pertemuan belum berjalan)
+        additionalTargets = getG2Recommendations({
           chapter,
           mainLectures,
           userVarkVector,
           mentalKepribadian,
         });
+      }
 
-      additionalQuota =
-        additionalTargets.length;
+      additionalQuota = additionalTargets.length;
     } else {
-      additionalTargets =
-        chooseG1AdditionalTargets({
-          chapter,
-          mainLectures,
-          activityMap,
-        });
+      additionalTargets = chooseG1AdditionalTargets({
+        chapter,
+        mainLectures,
+        activityMap,
+      });
 
-      additionalQuota =
-        Math.min(
-          RECOMMENDATION_LIMIT,
-          g1NonMainLectures.length,
-        );
-    }
-
-    const additionalDetails =
-      additionalTargets.map(
-        (lecture) => {
-          const detail =
-            makeTargetDetail({
-              lecture,
-              chapter,
-
-              role:
-                normalizedClass ===
-                "G2"
-                  ? "recommended"
-                  : "free-choice",
-
-              completedSet,
-              activityMap,
-
-              recommendation:
-                normalizedClass ===
-                "G2"
-                  ? lecture
-                  : null,
-            });
-
-          if (
-            normalizedClass ===
-            "G2"
-          ) {
-            recommendationDetails
-              .push(
-                detail,
-              );
-          }
-
-          return detail;
-        },
-      );
-
-    for (
-      const detail of [
-        ...mainDetails,
-        ...additionalDetails,
-      ]
-    ) {
-      targetDetails.push(
-        detail,
-      );
-
-      targetLectureIds.add(
-        detail.lectureId,
+      additionalQuota = Math.min(
+        RECOMMENDATION_LIMIT,
+        g1NonMainLectures.length,
       );
     }
 
-    const mainCompleted =
-      mainDetails.filter(
-        (detail) =>
-          detail.selesai,
-      ).length;
+    const additionalDetails = additionalTargets.map((lecture) => {
+      const detail = makeTargetDetail({
+        lecture,
+        chapter,
 
-    const additionalCompleted =
-      additionalDetails.filter(
-        (detail) =>
-          detail.selesai,
-      ).length;
+        role: normalizedClass === "G2" ? "recommended" : "free-choice",
+
+        completedSet,
+        activityMap,
+
+        recommendation: normalizedClass === "G2" ? lecture : null,
+      });
+
+      if (normalizedClass === "G2") {
+        recommendationDetails.push(detail);
+      }
+
+      return detail;
+    });
+
+    for (const detail of [...mainDetails, ...additionalDetails]) {
+      targetDetails.push(detail);
+
+      targetLectureIds.add(detail.lectureId);
+    }
+
+    const mainCompleted = mainDetails.filter((detail) => detail.selesai).length;
+
+    const additionalCompleted = additionalDetails.filter(
+      (detail) => detail.selesai,
+    ).length;
 
     completionEarned +=
       // mainCompleted +
@@ -1258,58 +645,42 @@ export const calculateTargetEngagement = ({
       // mainDetails.length +
       additionalQuota;
 
-    interactionPossible +=
-      additionalQuota;
+    interactionPossible += additionalQuota;
 
-    for (
-      const detail of
-        additionalDetails
-    ) {
-      interactionEarned +=
-        detail
-          .interactionRatio ??
-        0;
+    for (const detail of additionalDetails) {
+      interactionEarned += detail.interactionRatio ?? 0;
     }
 
     chapterDetails.push({
-      chapterId:
-        chapter.chapterId,
+      chapterId: chapter.chapterId,
 
-      chapterOrder:
-        Number(
-          chapter.chapterOrder ||
-            0,
-        ),
+      chapterOrder: Number(chapter.chapterOrder || 0),
 
-      mainPossible:
-        mainDetails.length,
+      mainPossible: mainDetails.length,
 
-      mainEarned:
-        mainCompleted,
+      mainEarned: mainCompleted,
 
       additionalType:
-        normalizedClass ===
-        "G2"
-          ? "hybrid-top-4"
-          : "free-choice-first-4",
+        normalizedClass === "G2" ? "hybrid-top-4" : "free-choice-first-4",
 
       additionalQuota,
 
-      additionalUsed:
-        additionalDetails.length,
+      additionalUsed: additionalDetails.length,
 
-      additionalPossible:
-        additionalQuota,
+      additionalPossible: additionalQuota,
 
-      additionalEarned:
-        additionalCompleted,
+      additionalEarned: additionalCompleted,
 
-      targetLectureIds: [
-        ...mainDetails,
-        ...additionalDetails,
-      ].map(
-        (detail) =>
-          detail.lectureId,
+      recommendedDurationSec:
+        normalizedClass === "G2"
+          ? additionalDetails.reduce(
+              (sum, detail) => sum + Number(detail.actualDurSec || 0),
+              0,
+            )
+          : 0,
+
+      targetLectureIds: [...mainDetails, ...additionalDetails].map(
+        (detail) => detail.lectureId,
       ),
     });
   }
@@ -1320,181 +691,90 @@ export const calculateTargetEngagement = ({
    * ==========================
    */
 
-  const explorationDetails =
-    [];
+  const explorationDetails = [];
 
-  for (
-    const [
-      lectureId,
-      activity,
-    ] of
-      activityMap.entries()
-  ) {
-    if (
-      !allExperimentLectureIds
-        .has(
-          lectureId,
-        )
-    ) {
+  for (const [lectureId, activity] of activityMap.entries()) {
+    if (!allExperimentLectureIds.has(lectureId)) {
       continue;
     }
 
-    if (
-      targetLectureIds.has(
-        lectureId,
-      )
-    ) {
+    if (targetLectureIds.has(lectureId)) {
       continue;
     }
 
-    if (
-      !hasActualAccess(
-        activity,
-      )
-    ) {
+    if (!hasActualAccess(activity)) {
       continue;
     }
 
-    const lookup =
-      experimentLectureLookup
-        .get(
-          lectureId,
-        );
+    const lookup = experimentLectureLookup.get(lectureId);
 
-    const lecture =
-      lookup?.lecture;
+    const lecture = lookup?.lecture;
 
-    const chapter =
-      lookup?.chapter;
+    const chapter = lookup?.chapter;
 
-    if (
-      !lecture ||
-      !chapter
-    ) {
+    if (!lecture || !chapter) {
       continue;
     }
 
-    const metrics =
-      interactionMetrics(
-        lecture,
-        activity,
-      );
+    const metrics = interactionMetrics(lecture, activity);
 
     explorationDetails.push({
-      chapterId:
-        chapter.chapterId,
+      chapterId: chapter.chapterId,
 
-      chapterOrder:
-        Number(
-          chapter.chapterOrder ||
-            0,
-        ),
+      chapterOrder: Number(chapter.chapterOrder || 0),
 
       lectureId,
 
-      lectureTitle:
-        lecture.lectureTitle ||
-        lectureId,
+      lectureTitle: lecture.lectureTitle || lectureId,
 
-      accessCount:
-        metrics.accessCount,
+      accessCount: metrics.accessCount,
 
-      rawDurationSec:
-        metrics.rawActualDurSec,
+      rawDurationSec: metrics.rawActualDurSec,
 
       /*
        * Durasi nyata untuk laporan.
        */
-      durationSec:
-        metrics.rawActualDurSec,
+      durationSec: metrics.rawActualDurSec,
 
       /*
        * Durasi capped untuk analitik
        * engagement/adherence.
        */
-      effectiveDurationSec:
-        metrics
-          .effectiveActualDurSec,
+      effectiveDurationSec: metrics.effectiveActualDurSec,
 
-      expectedDurSec:
-        metrics.expectedDurSec,
+      expectedDurSec: metrics.expectedDurSec,
 
-      interactionRatio:
-        metrics.ratio,
+      interactionRatio: metrics.ratio,
 
       interactionPercent:
-        metrics.ratio == null
-          ? null
-          : Number(
-              (
-                metrics.ratio *
-                100
-              ).toFixed(1),
-            ),
+        metrics.ratio == null ? null : Number((metrics.ratio * 100).toFixed(1)),
 
-      selesai:
-        completedSet.has(
-          lectureId,
-        )
-          ? 1
-          : 0,
+      selesai: completedSet.has(lectureId) ? 1 : 0,
 
-      firstAccessAt:
-        metrics.firstAccessAt,
+      firstAccessAt: metrics.firstAccessAt,
     });
   }
 
-  const explorationInteractionDetails =
-    explorationDetails.filter(
-      (detail) =>
-        detail
-          .interactionRatio !=
-        null,
-    );
+  const explorationInteractionDetails = explorationDetails.filter(
+    (detail) => detail.interactionRatio != null,
+  );
 
-  const explorationInteractionEarned =
-    explorationInteractionDetails
-      .reduce(
-        (
-          sum,
-          detail,
-        ) =>
-          sum +
-          Number(
-            detail
-              .interactionRatio ||
-              0,
-          ),
-        0,
-      );
+  const explorationInteractionEarned = explorationInteractionDetails.reduce(
+    (sum, detail) => sum + Number(detail.interactionRatio || 0),
+    0,
+  );
 
-  const explorationInteractionPossible =
-    explorationInteractionDetails
-      .length;
+  const explorationInteractionPossible = explorationInteractionDetails.length;
 
   const explorationAverageInteractionPercent =
-    explorationInteractionPossible >
-    0
-      ? (
-          explorationInteractionEarned /
-          explorationInteractionPossible
-        ) * 100
+    explorationInteractionPossible > 0
+      ? (explorationInteractionEarned / explorationInteractionPossible) * 100
       : 0;
 
-  const explorationEffectiveDurationSec =
-    explorationDetails.reduce(
-      (
-        sum,
-        detail,
-      ) =>
-        sum +
-        Number(
-          detail
-            .effectiveDurationSec ||
-            0,
-        ),
-      0,
-    );
+  const explorationEffectiveDurationSec = explorationDetails.reduce(
+    (sum, detail) => sum + Number(detail.effectiveDurationSec || 0),
+    0,
+  );
 
   /*
    * ==========================
@@ -1505,43 +785,26 @@ export const calculateTargetEngagement = ({
 
   const recommendedDurationSec =
     normalizedClass === "G2"
-      ? recommendationDetails
-          .reduce(
-            (
-              sum,
-              detail,
-            ) =>
-              sum +
-              Number(
-                detail
-                  .actualDurSec ||
-                  0,
-              ),
-            0,
-          )
+      ? recommendationDetails.reduce(
+          (sum, detail) => sum + Number(detail.actualDurSec || 0),
+          0,
+        )
       : 0;
 
   const outsideRecommendationDurationSec =
-    normalizedClass === "G2"
-      ? explorationEffectiveDurationSec
-      : 0;
+    normalizedClass === "G2" ? explorationEffectiveDurationSec : 0;
 
   const totalAdditionalDurationSec =
-    recommendedDurationSec +
-    outsideRecommendationDurationSec;
+    recommendedDurationSec + outsideRecommendationDurationSec;
 
   const recommendationAdherence =
     normalizedClass === "G2"
       ? {
           durationPercent:
-            totalAdditionalDurationSec >
-            0
+            totalAdditionalDurationSec > 0
               ? Number(
                   (
-                    (
-                      recommendedDurationSec /
-                      totalAdditionalDurationSec
-                    ) *
+                    (recommendedDurationSec / totalAdditionalDurationSec) *
                     100
                   ).toFixed(1),
                 )
@@ -1557,79 +820,68 @@ export const calculateTargetEngagement = ({
 
   /*
    * ==========================
+   * ADHERENCE PER PERTEMUAN
+   * Objek dikelompokkan menurut keanggotaan pertemuannya,
+   * bukan menurut waktu aksesnya.
+   * ==========================
+   */
+
+  const adherenceByChapter =
+    normalizedClass === "G2"
+      ? chapterDetails.map((chapter) => {
+          const luar = explorationDetails
+            .filter((d) => d.chapterId === chapter.chapterId)
+            .reduce((sum, d) => sum + Number(d.effectiveDurationSec || 0), 0);
+
+          const dalam = Number(chapter.recommendedDurationSec || 0);
+          const total = dalam + luar;
+
+          return {
+            chapterId: chapter.chapterId,
+            chapterOrder: chapter.chapterOrder,
+            recommendedDurationSec: dalam,
+            outsideRecommendationDurationSec: luar,
+            totalAdditionalDurationSec: total,
+            durationPercent:
+              total > 0 ? Number(((dalam / total) * 100).toFixed(1)) : null,
+          };
+        })
+      : [];
+
+  /*
+   * ==========================
    * FINAL SES COMPONENTS
    * ==========================
    */
 
   const interactionPercent =
     interactionPossible > 0
-      ? (
-          interactionEarned /
-          interactionPossible
-        ) * 100
+      ? (interactionEarned / interactionPossible) * 100
       : 0;
 
   const completionPercent =
-    completionPossible > 0
-      ? (
-          completionEarned /
-          completionPossible
-        ) * 100
-      : 0;
+    completionPossible > 0 ? (completionEarned / completionPossible) * 100 : 0;
 
-  const targetDurationSec =
-    targetDetails.reduce(
-      (
-        sum,
-        detail,
-      ) =>
-        sum +
-        Number(
-          detail
-            .actualDurSec ||
-            0,
-        ),
-      0,
-    );
+  const targetDurationSec = targetDetails.reduce(
+    (sum, detail) => sum + Number(detail.actualDurSec || 0),
+    0,
+  );
 
-  const targetExpectedDurationSec =
-    targetDetails.reduce(
-      (
-        sum,
-        detail,
-      ) =>
-        sum +
-        Number(
-          detail
-            .expectedDurSec ||
-            0,
-        ),
-      0,
-    );
+  const targetExpectedDurationSec = targetDetails.reduce(
+    (sum, detail) => sum + Number(detail.expectedDurSec || 0),
+    0,
+  );
 
   return {
-    kelas:
-      normalizedClass,
+    kelas: normalizedClass,
 
-    interactionPercent:
-      Number(
-        interactionPercent
-          .toFixed(1),
-      ),
+    interactionPercent: Number(interactionPercent.toFixed(1)),
 
-    interactionEarned:
-      Number(
-        interactionEarned
-          .toFixed(4),
-      ),
+    interactionEarned: Number(interactionEarned.toFixed(4)),
 
     interactionPossible,
 
-    completionPercent:
-      Number(
-        completionPercent
-          .toFixed(1),
-      ),
+    completionPercent: Number(completionPercent.toFixed(1)),
 
     completionEarned,
     completionPossible,
@@ -1642,75 +894,36 @@ export const calculateTargetEngagement = ({
     chapterDetails,
 
     exploration: {
-      count:
-        explorationDetails.length,
+      count: explorationDetails.length,
 
-      accessCount:
-        explorationDetails
-          .reduce(
-            (
-              sum,
-              item,
-            ) =>
-              sum +
-              Number(
-                item
-                  .accessCount ||
-                  0,
-              ),
-            0,
-          ),
+      accessCount: explorationDetails.reduce(
+        (sum, item) => sum + Number(item.accessCount || 0),
+        0,
+      ),
 
-      completedCount:
-        explorationDetails.filter(
-          (item) =>
-            item.selesai,
-        ).length,
+      completedCount: explorationDetails.filter((item) => item.selesai).length,
 
-      durationSec:
-        explorationDetails
-          .reduce(
-            (
-              sum,
-              item,
-            ) =>
-              sum +
-              Number(
-                item
-                  .durationSec ||
-                  0,
-              ),
-            0,
-          ),
+      durationSec: explorationDetails.reduce(
+        (sum, item) => sum + Number(item.durationSec || 0),
+        0,
+      ),
 
-      effectiveDurationSec:
-        explorationEffectiveDurationSec,
+      effectiveDurationSec: explorationEffectiveDurationSec,
 
-      interactionEarned:
-        Number(
-          explorationInteractionEarned
-            .toFixed(4),
-        ),
+      interactionEarned: Number(explorationInteractionEarned.toFixed(4)),
 
-      interactionPossible:
-        explorationInteractionPossible,
+      interactionPossible: explorationInteractionPossible,
 
-      averageInteractionPercent:
-        Number(
-          explorationAverageInteractionPercent
-            .toFixed(1),
-        ),
+      averageInteractionPercent: Number(
+        explorationAverageInteractionPercent.toFixed(1),
+      ),
 
-      top4:
-        sortExplorationTop4(
-          explorationDetails,
-        ),
+      top4: sortExplorationTop4(explorationDetails),
 
-      details:
-        explorationDetails,
+      details: explorationDetails,
     },
 
-    recommendationAdherence,
+    recommendationAdherence, adherenceByChapter,
   };
 };
 
@@ -1724,99 +937,50 @@ export const calculateFeedbackScore = ({
   dominant,
   mentalKepribadian,
 }) => {
-  const normalizedDominant =
-    normalizeVark(
-      dominant,
-    );
+  const normalizedDominant = normalizeVark(dominant);
 
-  const fallbackVector =
-    normalizedDominant
-      ? {
-          [
-            normalizedDominant
-          ]: 1,
-        }
-      : null;
+  const fallbackVector = normalizedDominant
+    ? {
+        [normalizedDominant]: 1,
+      }
+    : null;
 
-  const result =
-    calculateTargetEngagement({
-      course,
-      kelas: "G1",
-      lectureCompleted,
-      userVarkVector:
-        fallbackVector,
-      mentalKepribadian,
-      activities: [],
-    });
+  const result = calculateTargetEngagement({
+    course,
+    kelas: "G1",
+    lectureCompleted,
+    userVarkVector: fallbackVector,
+    mentalKepribadian,
+    activities: [],
+  });
 
   return {
-    feedback:
-      result
-        .completionPercent,
+    feedback: result.completionPercent,
 
-    earned:
-      result
-        .completionEarned,
+    earned: result.completionEarned,
 
-    possible:
-      result
-        .completionPossible,
+    possible: result.completionPossible,
 
-    mainEarned:
-      result
-        .chapterDetails
-        .reduce(
-          (
-            sum,
-            chapter,
-          ) =>
-            sum +
-            chapter.mainEarned,
-          0,
-        ),
+    mainEarned: result.chapterDetails.reduce(
+      (sum, chapter) => sum + chapter.mainEarned,
+      0,
+    ),
 
-    mainPossible:
-      result
-        .chapterDetails
-        .reduce(
-          (
-            sum,
-            chapter,
-          ) =>
-            sum +
-            chapter.mainPossible,
-          0,
-        ),
+    mainPossible: result.chapterDetails.reduce(
+      (sum, chapter) => sum + chapter.mainPossible,
+      0,
+    ),
 
-    supplementaryEarned:
-      result
-        .chapterDetails
-        .reduce(
-          (
-            sum,
-            chapter,
-          ) =>
-            sum +
-            chapter
-              .additionalEarned,
-          0,
-        ),
+    supplementaryEarned: result.chapterDetails.reduce(
+      (sum, chapter) => sum + chapter.additionalEarned,
+      0,
+    ),
 
-    supplementaryPossible:
-      result
-        .chapterDetails
-        .reduce(
-          (
-            sum,
-            chapter,
-          ) =>
-            sum +
-            chapter
-              .additionalPossible,
-          0,
-        ),
+    supplementaryPossible: result.chapterDetails.reduce(
+      (sum, chapter) => sum + chapter.additionalPossible,
+      0,
+    ),
 
-    chapterDetails:
-      result.chapterDetails,
+    chapterDetails: result.chapterDetails,
   };
 };

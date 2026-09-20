@@ -951,6 +951,37 @@ const StudentEngagement = () => {
                                     </div>
                                   </div>
                                 )}
+                                {s.adherenceByChapter?.length > 0 && (
+                                      <div className="mt-3 space-y-1.5">
+                                        {s.adherenceByChapter
+                                          .slice()
+                                          .sort(
+                                            (a, b) =>
+                                              a.chapterOrder - b.chapterOrder,
+                                          )
+                                          .map((c) => (
+                                            <div
+                                              key={c.chapterId}
+                                              className="flex items-center gap-2"
+                                            >
+                                              <span className="w-24 shrink-0 text-[10px] text-purple-700">
+                                                Pertemuan {c.chapterOrder}
+                                              </span>
+                                              <div className="flex-1">
+                                                <PctBar
+                                                  value={c.durationPercent ?? 0}
+                                                  showValue={false}
+                                                />
+                                              </div>
+                                              <span className="w-12 shrink-0 text-right text-[10px] font-medium text-purple-700">
+                                                {c.durationPercent == null
+                                                  ? "—"
+                                                  : `${c.durationPercent}%`}
+                                              </span>
+                                            </div>
+                                          ))}
+                                      </div>
+                                    )}
                               </div>
                             )}
                           </div>
