@@ -24,12 +24,17 @@ import {
   MAIN_LECTURE_IDS_BY_CHAPTER,
   getG2Recommendations,
 } from "../utils/calculateFeedbackScore.js";
+import { getMentalReference } from "../utils/mentalReference.js";
 
 const TULIS = process.argv.includes("--tulis");
 const PERTEMUAN = [3, 4, 5, 6, 7];
 
 const jalankan = async () => {
   await mongoose.connect(`${process.env.MONGODB_URI}/lms`);
+
+  // Ambang dibaca SEKALI dari basis data, lalu dipakai untuk seluruh praja
+  const mentalReference = await getMentalReference();
+  console.log(`Ambang mental kepribadian: ${mentalReference}`);
 
   const courses = await Course.find({}).lean();
 
@@ -96,6 +101,7 @@ const jalankan = async () => {
           mainLectures,
           userVarkVector: profile.scores,
           mentalKepribadian: praja?.mentalKepribadian,
+          mentalReference,
         });
 
         const ids = (hasil || []).map((l) => l.lectureId);

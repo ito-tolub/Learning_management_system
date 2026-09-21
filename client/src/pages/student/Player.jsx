@@ -27,8 +27,7 @@ const MAIN_LECTURE_IDS_BY_CHAPTER = {
 const RECOMMENDATION_LIMIT = 4;
 const COMPLETION_READING_RATIO = 0.5;
 
-const MENTAL_REFERENCE_VALUE = 84;
-// Cosine similarity VARK antara profil pengguna dan objek pembelajaran
+// const MENTAL_REFERENCE_VALUE = 84.87;
 const cosineSimilarity = (userVector, objectVector) => {
   if (!userVector || !objectVector) return 0;
 
@@ -65,12 +64,7 @@ const normalizeVark = (val) => {
 };
 
 const varkEmoji = { V: "🎬", A: "🎧", R: "📄", K: "🛠️" };
-// const varkLabel = {
-//   V: "Visual",
-//   A: "Auditory",
-//   R: "Read/Write",
-//   K: "Kinesthetic",
-// };
+
 const varkColor = {
   V: {
     bg: "bg-purple-50",
@@ -740,9 +734,10 @@ const getInstructionalProfile = (mentalKepribadian) => {
   if (!Number.isFinite(score)) return null;
 
   return {
-    contentGranularity: score >= MENTAL_REFERENCE_VALUE ? "utuh" : "tersegmentasi",
+    contentGranularity:
+      score >= mentalReference ? "utuh" : "tersegmentasi",
 
-    cognitiveLevel: score >= MENTAL_REFERENCE_VALUE ? "C4-C6" : "C1-C3",
+    cognitiveLevel: score >= mentalReference ? "C4-C6" : "C1-C3",
   };
 };
 
@@ -814,6 +809,23 @@ const Player = () => {
     setPlayerData(lecture);
     setPlayerScrollRequest((previous) => previous + 1);
   };
+  const [mentalReference, setMentalReference] = useState(null);
+
+  useEffect(() => {
+    const ambil = async () => {
+      try {
+        const token = await getToken();
+        const { data } = await axios.get(
+          backendUrl + "/api/user/mental-reference",
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (data.success) setMentalReference(data.mentalReference);
+      } catch (error) {
+        console.error("Gagal mengambil ambang mental kepribadian:", error);
+      }
+    };
+    ambil();
+  }, [backendUrl]);
 
   useEffect(() => {
     if (!playerData || !playerSectionRef.current) return undefined;
@@ -1671,7 +1683,7 @@ const Player = () => {
     );
   }
 
-    // Daftar BEKU dari server. Urutan mengikuti peringkat saat dibekukan.
+  // Daftar BEKU dari server. Urutan mengikuti peringkat saat dibekukan.
   const rekomendasiAkhir =
     recommendationEnabled && frozenIds.length > 0
       ? frozenIds

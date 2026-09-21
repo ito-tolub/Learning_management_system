@@ -11,7 +11,7 @@ const HYBRID_WEIGHT = {
 };
 
 const MAX_ADDITIONAL_LECTURES = 4;
-const MENTAL_REFERENCE_VALUE = 84;
+// const MENTAL_REFERENCE_VALUE = 84.87;
 
 const MAIN_LECTURE_IDS_BY_CHAPTER = {
   pertemuan1: ["op1.1", "op1.2"],
@@ -215,13 +215,14 @@ const calculateG2EnrollmentProgress = (
   completedLectureIds = [],
   userVarkVector = null,
   mentalKepribadian = null,
+  mentalReference = null,
 ) => {
   if (!Array.isArray(course?.courseContent)) {
     return { totalLectures: 0, lectureCompleted: 0 };
   }
 
   const completedSet = new Set(completedLectureIds.filter(Boolean));
-  const instructionalProfile = getInstructionalProfile(mentalKepribadian);
+  const instructionalProfile = getInstructionalProfile(mentalKepribadian, mentalReference);
 
   return Object.keys(MAIN_LECTURE_IDS_BY_CHAPTER).reduce(
     (progress, chapterId) => {
@@ -396,6 +397,7 @@ const MyEnrollment = () => {
               completedLectureIds,
               userVarkVector,
               userData?.mentalKepribadian,
+              mentalReference,
             );
 
             return {
@@ -448,7 +450,7 @@ const MyEnrollment = () => {
     } else {
       setProgressArray([]);
     }
-  }, [enrolledCourses, userData]);
+  }, [enrolledCourses, userData, mentalReference]);
 
   return (
     <>

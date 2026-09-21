@@ -3,7 +3,7 @@ const HYBRID_WEIGHT = {
   instructional: 0.3,
 };
 
-const MENTAL_REFERENCE_VALUE = 84;
+// const MENTAL_REFERENCE_VALUE = 84.87;
 const VARK_KEYS = ["V", "A", "R", "K"];
 
 const normalizeVark = (value) => {
@@ -69,14 +69,16 @@ const cosineSimilarity = (userVector, objectVector) => {
 const getInstructionalProfile = (mentalKepribadian) => {
   const score = Number(mentalKepribadian);
 
-  if (!Number.isFinite(score)) return null;
+  if (!Number.isFinite(score) || !Number.isFinite(mentalReference)) {
+    return null;
+  }
 
   return {
     contentGranularity:
-      score >= MENTAL_REFERENCE_VALUE ? "utuh" : "tersegmentasi",
+      score >= mentalReference ? "utuh" : "tersegmentasi",
 
     cognitiveLevel:
-      score >= MENTAL_REFERENCE_VALUE ? "C4-C6" : "C1-C3",
+      score >= mentalReference ? "C4-C6" : "C1-C3",
   };
 };
 
@@ -140,6 +142,7 @@ export const buildFeedbackPackage = ({
   course,
   userVarkResult,
   mentalKepribadian,
+  mentalReference,
 }) => {
   const userVarkVector = userVarkResult?.scores || null;
 
@@ -147,7 +150,7 @@ export const buildFeedbackPackage = ({
     getDominantModalities(userVarkResult);
 
   const instructionalProfile =
-    getInstructionalProfile(mentalKepribadian);
+    getInstructionalProfile(mentalKepribadian, mentalReference);
 
   if (
     !course ||

@@ -108,6 +108,8 @@ export const ensureFrozenRecommendation = async ({
   courseId,
   chapterId,
 }) => {
+  const { getMentalReference } = await import("./mentalReference.js");
+  const mentalReference = await getMentalReference();
   const cid = String(courseId);
 
   const tersimpan = await RecommendationSnapshot.findOne({
@@ -144,11 +146,15 @@ export const ensureFrozenRecommendation = async ({
     ? await Keprajaan.findOne({ npp: String(praja.npp).trim() }).lean()
     : null;
 
+  // const { getMentalReference } = await import("./mentalReference.js");
+  // const mentalReference = await getMentalReference();
+
   const hasil = getG2Recommendations({
     chapter,
     mainLectures,
     userVarkVector: profile.scores,
     mentalKepribadian: kepr?.mentalKepribadian,
+    mentalReference,
   });
 
   const ids = (hasil || []).map((l) => l.lectureId);

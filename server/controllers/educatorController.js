@@ -8,18 +8,15 @@ import jwt from "jsonwebtoken";
 import Pegawai from "../models/pegawai.js";
 import Keprajaan from "../models/Keprajaan.js";
 import bcrypt from "bcryptjs";
-import {
-  calculateTargetEngagement,
-  MAIN_LECTURE_IDS_BY_CHAPTER,
-} from "../utils/calculateFeedbackScore.js";
+import { calculateTargetEngagement, MAIN_LECTURE_IDS_BY_CHAPTER, } from "../utils/calculateFeedbackScore.js";
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
 import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
-import {Attendance, EXPERIMENT_MEETINGS, PRESENT_STATUSES,
-} from "../models/Attendance.js";
+import { Attendance, EXPERIMENT_MEETINGS, PRESENT_STATUSES, } from "../models/Attendance.js";
 import { getUserVarkVectorBulk } from "../utils/getUserVarkVector.js";
 import { RecommendationSnapshot } from "../models/RecommendationSnapshot.js";
 import { getFrozenBulk } from "../utils/freezeRecommendation.js";
+import { getMentalReference } from "../utils/mentalReference.js";
 
 export const verifyNipAndBecomeEducator = async (req, res) => {
   try {
@@ -720,9 +717,7 @@ export const getStudentEngagementScore = async (req, res) => {
       );
     }
 
-    const varkByUserId = await getUserVarkVectorBulk(
-      users.map((u) => u._id),
-    );
+    const varkByUserId = await getUserVarkVectorBulk(users.map((u) => u._id));
 
     const snapshots = await RecommendationSnapshot.find({}).lean();
 
@@ -736,6 +731,7 @@ export const getStudentEngagementScore = async (req, res) => {
       }
       frozenByUserCourse.get(kunci).set(s.chapterId, s.recommendedLectureIds);
     }
+    const mentalReference = await getMentalReference();
 
     for (const praja of semuaPraja) {
       const nppStr = String(praja.npp || "").trim();
@@ -812,6 +808,7 @@ export const getStudentEngagementScore = async (req, res) => {
               null,
             mentalKepribadian: praja?.mentalKepribadian,
             activities,
+            mentalReference,
             frozenByChapter:
               frozenByUserCourse.get(`${user._id}::${courseId}`) || null,
           });
@@ -879,7 +876,7 @@ export const getStudentEngagementScore = async (req, res) => {
           }
         }
       }
-      
+
       const interaksi =
         grandInteractionPossible > 0
           ? Math.min(

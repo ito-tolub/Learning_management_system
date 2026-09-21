@@ -4,7 +4,7 @@ const HYBRID_WEIGHT = {
 };
 
 const RECOMMENDATION_LIMIT = 4;
-const MENTAL_REFERENCE_VALUE = 84;
+// const MENTAL_REFERENCE_VALUE = 84.87;
 
 export const MAIN_LECTURE_IDS_BY_CHAPTER = {
   pertemuan1: ["op1.1", "op1.2"],
@@ -65,22 +65,21 @@ const cosineSimilarity = (userVector, objectVector) => {
   if (userNorm === 0 || objectNorm === 0) {
     return 0;
   }
-
   return dot / (userNorm * objectNorm);
 };
 
-const getInstructionalProfile = (mentalKepribadian) => {
+const getInstructionalProfile = (mentalKepribadian, mentalReference) => {
   const score = Number(mentalKepribadian);
 
-  if (!Number.isFinite(score)) {
+  if (!Number.isFinite(score) || !Number.isFinite(mentalReference)) {
     return null;
   }
 
   return {
     contentGranularity:
-      score >= MENTAL_REFERENCE_VALUE ? "utuh" : "tersegmentasi",
+      score >= mentalReference ? "utuh" : "tersegmentasi",
 
-    cognitiveLevel: score >= MENTAL_REFERENCE_VALUE ? "C4-C6" : "C1-C3",
+    cognitiveLevel: score >= mentalReference ? "C4-C6" : "C1-C3",
   };
 };
 
@@ -255,12 +254,13 @@ export const getG2Recommendations = ({
   mainLectures,
   userVarkVector,
   mentalKepribadian,
+  mentalReference,
 }) => {
   if (!userVarkVector) {
     return [];
   }
 
-  const instructionalProfile = getInstructionalProfile(mentalKepribadian);
+  const instructionalProfile = getInstructionalProfile(mentalKepribadian, mentalReference);
 
   const candidates = getG2RecommendationCandidates(chapter, mainLectures);
 
@@ -507,6 +507,7 @@ export const calculateTargetEngagement = ({
   mentalKepribadian,
   activities = [],
   frozenByChapter = null,
+    mentalReference = null,
 }) => {
   const normalizedClass = String(kelas || "")
     .trim()
@@ -588,6 +589,7 @@ export const calculateTargetEngagement = ({
           mainLectures,
           userVarkVector,
           mentalKepribadian,
+          mentalReference 
         });
       }
 
@@ -927,15 +929,12 @@ export const calculateTargetEngagement = ({
   };
 };
 
-/*
- * Compatibility lama.
- * SES baru memakai calculateTargetEngagement.
- */
 export const calculateFeedbackScore = ({
   course,
   lectureCompleted = [],
   dominant,
   mentalKepribadian,
+  mentalReference,
 }) => {
   const normalizedDominant = normalizeVark(dominant);
 
