@@ -35,7 +35,7 @@ const sesColor = (ses) => {
     return "text-green-600";
   }
 
-  if (ses >= 65) {
+  if (ses >= 60) {
     return "text-yellow-600";
   }
 
@@ -1006,15 +1006,14 @@ const StudentEngagement = () => {
         </p>
 
         <p className="mt-1 text-blue-500">
-          Target G1 = materi utama + maksimal 4 objek tambahan bebas per
-          pertemuan. Target G2 = materi utama + maksimal 4 objek rekomendasi
-          hybrid per pertemuan.
+          Target G1 = 4 objek pilhan per
+          pertemuan. Target G2 = 4 objek rekomendasi per pertemuan.
         </p>
 
         <p className="mt-1 text-blue-500">
           Interaksi = rata-rata rasio durasi efektif pada objek target. Objek
-          target yang tidak diakses bernilai 0. Objek di luar target hanya
-          dicatat sebagai eksplorasi dan tidak masuk SES.
+          target yang tidak diakses bernilai 0. Objek di luar target
+          dicatat sebagai eksplorasi dan tambahan perhitungan profil VARK praja.
         </p>
       </div>
     </div>

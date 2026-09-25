@@ -955,7 +955,7 @@ export const getStudentEngagementScore = async (req, res) => {
       if (ses >= 80) {
         kategori = "Sangat Aktif";
         kategoriColor = "green";
-      } else if (ses >= 65) {
+      } else if (ses >= 60) {
         kategori = "Aktif";
         kategoriColor = "yellow";
       }
