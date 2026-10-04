@@ -9,6 +9,16 @@ import { clerkClient } from "@clerk/express";
 import { getUserVarkVector } from "../utils/getUserVarkVector.js";
 import { Attendance } from "../models/Attendance.js";
 import { ensureFrozenRecommendation } from "../utils/freezeRecommendation.js";
+import { getMentalReference } from "../utils/mentalReference.js";
+
+export const getMyMentalReference = async (req, res) => {
+  try {
+    const mentalReference = await getMentalReference();
+    res.json({ success: true, mentalReference });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 export const updateCourseProgress = async (req, res) => {
   try {
@@ -110,6 +120,21 @@ export const updateCourseProgress = async (req, res) => {
     }
 
     await progress.save();
+
+    await LectureActivity.updateOne(
+      { userId, courseId, lectureId },
+      {
+        $push: {
+          events: {
+            type: alreadyCompleted ? "uncomplete" : "complete",
+            at: new Date(),
+          },
+        },
+      },
+      // Tidak membuat dokumen baru: penandaan selesai tanpa aktivitas
+      // tidak boleh dianggap sebagai akses.
+      { upsert: false },
+    );
 
     res.json({
       success: true,
@@ -358,7 +383,7 @@ export const userEnrolledCourses = async (req, res) => {
           .map((nip) => pegawaiByNip.get(nip))
           .filter(Boolean);
 
-                const presensi = presensiByCourseId.get(obj._id.toString()) || {
+        const presensi = presensiByCourseId.get(obj._id.toString()) || {
           hadir: 0,
           sakit: 0,
           izin: 0,
@@ -473,10 +498,10 @@ export const getUserCourseProgress = async (req, res) => {
     });
 
     // Ambil waktu baca seluruh lecture pada course ini
-    const activityData = await LectureActivity.find({
-      userId,
-      courseId,
-    }).lean();
+    const activityData = await LectureActivity.find(
+      { userId, courseId },
+      { events: 0 },
+    ).lean();
 
     res.json({
       success: true,
@@ -523,7 +548,9 @@ export const saveVarkResult = async (req, res) => {
     let keprajaan = null;
 
     if (user.npp) {
-      keprajaan = await Keprajaan.findOne({ npp: String(user.npp).trim() }).lean();
+      keprajaan = await Keprajaan.findOne({
+        npp: String(user.npp).trim(),
+      }).lean();
     }
 
     // ========================================

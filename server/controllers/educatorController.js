@@ -8,7 +8,7 @@ import jwt from "jsonwebtoken";
 import Pegawai from "../models/pegawai.js";
 import Keprajaan from "../models/Keprajaan.js";
 import bcrypt from "bcryptjs";
-import { calculateTargetEngagement, MAIN_LECTURE_IDS_BY_CHAPTER, } from "../utils/calculateFeedbackScore.js";
+import { calculateTargetEngagement, MAIN_LECTURE_IDS_BY_CHAPTER, MIN_VALID_ACCESS_SEC, splitShortInteractions, } from "../utils/calculateFeedbackScore.js";
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
 import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
@@ -578,11 +578,16 @@ export const trackLectureActivity = async (req, res) => {
           $setOnInsert: {
             totalDuration: 0,
           },
+          // Log per kejadian
+          $push: {
+            events: { type: "open", at: new Date() },
+          },
         },
         {
           upsert: true,
           new: true,
           setDefaultsOnInsert: true,
+          projection: { events: 0 },
         },
       );
 
@@ -628,11 +633,20 @@ export const trackLectureActivity = async (req, res) => {
           $setOnInsert: {
             accessCount: 0,
           },
+          // Log per kejadian
+          $push: {
+            events: {
+              type: "duration",
+              seconds: safeDuration,
+              at: new Date(),
+            },
+          },
         },
         {
           upsert: true,
           new: true,
           setDefaultsOnInsert: true,
+          projection: { events: 0 },
         },
       );
 
@@ -754,6 +768,12 @@ export const getStudentEngagementScore = async (req, res) => {
       const detail = [];
       const chapterDetails = [];
 
+      // Interaksi < MIN_VALID_ACCESS_SEC: tidak dihitung SES, dilaporkan ke pengajar
+      const shortInteractionDetails = [];
+
+      // Jumlah objek yang pernah dibuka praja (dasar diagram akses)
+      let totalAccessedLectures = 0;
+
       let explorationCount = 0;
       let explorationAccessCount = 0;
       let explorationCompletedCount = 0;
@@ -798,16 +818,32 @@ export const getStudentEngagementScore = async (req, res) => {
             courseId,
           }).lean();
 
+          const shortSplit = splitShortInteractions({
+            course,
+            activities,
+            lectureCompleted: progress?.lectureCompleted || [],
+          });
+
+          totalAccessedLectures += activities.length;
+
+          shortInteractionDetails.push(
+            ...shortSplit.shortInteractions.map((item) => ({
+              ...item,
+              courseId,
+              courseTitle: course.courseTitle,
+            })),
+          );
+
           const targetResult = calculateTargetEngagement({
             course,
             kelas: normalizedClass,
-            lectureCompleted: progress?.lectureCompleted || [],
+            lectureCompleted: shortSplit.validCompleted,
             userVarkVector:
               varkByUserId.get(user._id)?.scores ||
               user?.varkResult?.scores ||
               null,
             mentalKepribadian: praja?.mentalKepribadian,
-            activities,
+            activities: shortSplit.validActivities,
             mentalReference,
             frozenByChapter:
               frozenByUserCourse.get(`${user._id}::${courseId}`) || null,
@@ -995,6 +1031,19 @@ export const getStudentEngagementScore = async (req, res) => {
         recommendationAdherence,
 
         adherenceByChapter,
+
+        shortInteraction: {
+          thresholdSec: MIN_VALID_ACCESS_SEC,
+          count: shortInteractionDetails.length,
+          totalAccessed: totalAccessedLectures,
+          validCount: Math.max(
+            totalAccessedLectures - shortInteractionDetails.length,
+            0,
+          ),
+          completedCount: shortInteractionDetails.filter((d) => d.markedCompleted)
+            .length,
+          details: shortInteractionDetails,
+        },
       });
     }
     sesData.sort((a, b) => b.ses - a.ses);

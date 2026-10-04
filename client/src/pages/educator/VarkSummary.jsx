@@ -178,7 +178,7 @@ const StudentRow = ({ student }) => {
               <div>
                 <p className="text-xs font-semibold text-gray-600 mb-2">
                   Skor adaptif (kuisioner{" "}
-                  {Math.round((src.quizWeight ?? 0.5) * 100)}% + waktu baca{" "}
+                  {Math.round((src.quizWeight ?? 0.5) * 100)}% + interaksi{" "}
                   {Math.round((src.readingWeight ?? 0.5) * 100)}%)
                 </p>
                 <table className="w-full text-xs">
@@ -187,7 +187,7 @@ const StudentRow = ({ student }) => {
                       <th className="text-left font-medium pb-1">Tag</th>
                       <th className="text-right font-medium pb-1">Kuisioner</th>
                       <th className="text-right font-medium pb-1">
-                        Waktu Baca
+                        Interaksi
                       </th>
                       <th className="text-right font-medium pb-1">Adaptif</th>
                     </tr>
@@ -286,10 +286,10 @@ const VarkSummary = () => {
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">
-            Ringkasan Durasi Akses per Gaya VARK
+            Ringkasan Preferensi per Modalitas VARK
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Profil VARK adaptif: 50% hasil kuisioner + 50% pola waktu baca
+            Profil VARK adaptif: 50% hasil kuisioner + 50% pola interaksi
             aktual
           </p>
         </div>
@@ -392,9 +392,9 @@ const VarkSummary = () => {
               <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
                 <th className="py-3 px-4 font-medium">Praja</th>
                 <th className="py-3 px-4 font-medium">Kelas</th>
-                <th className="py-3 px-4 font-medium">Gaya Kuisioner</th>
-                <th className="py-3 px-4 font-medium">Gaya Waktu Baca</th>
-                <th className="py-3 px-4 font-medium">Gaya Adaptif</th>
+                <th className="py-3 px-4 font-medium">Preferensi Kuisioner</th>
+                <th className="py-3 px-4 font-medium">Preferensi Interaksi</th>
+                <th className="py-3 px-4 font-medium">Preferensi Adaptif</th>
                 <th className="py-3 px-4 font-medium text-right">Total Menit</th>
               </tr>
             </thead>

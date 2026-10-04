@@ -728,16 +728,17 @@ const HtmlPlayer = ({ url, title }) => {
   );
 };
 
-const getInstructionalProfile = (mentalKepribadian) => {
+const getInstructionalProfile = (mentalKepribadian, mentalReference) => {
   const score = Number(mentalKepribadian);
+  const reference = Number(mentalReference);
 
-  if (!Number.isFinite(score)) return null;
+  if (!Number.isFinite(score) || !Number.isFinite(reference)) return null;
 
   return {
     contentGranularity:
-      score >= mentalReference ? "utuh" : "tersegmentasi",
+      score >= reference ? "utuh" : "tersegmentasi",
 
-    cognitiveLevel: score >= mentalReference ? "C4-C6" : "C1-C3",
+    cognitiveLevel: score >= reference ? "C4-C6" : "C1-C3",
   };
 };
 
@@ -882,6 +883,7 @@ const Player = () => {
     adaptiveVarkVector || userData?.varkResult?.scores || null;
   const userInstructionalProfile = getInstructionalProfile(
     userData?.mentalKepribadian,
+    mentalReference,
   );
   const dominantSet = userVarkVector
     ? Object.entries(userVarkVector)
@@ -1465,20 +1467,27 @@ const Player = () => {
     if (url.match(/\.pdf/i)) {
       return (
         <div className="w-full">
-          <iframe
-            src={url}
-            className="w-full rounded-xl border border-gray-200"
-            style={{ height: "500px" }}
-            title={playerData.lectureTitle}
-          />
-          <a
+          <div
+            className="w-full mx-auto rounded-xl border border-gray-200 overflow-hidden bg-gray-50"
+            style={{
+              aspectRatio: "1 / 1.4142", // rasio halaman A4 portrait
+              maxHeight: "80vh",
+            }}
+          >
+            <iframe
+              src={url}
+              className="w-full h-full"
+              title={playerData.lectureTitle}
+            />
+          </div>
+          {/* <a
             href={url}
             target="_blank"
             rel="noreferrer"
             className="mt-2 inline-block text-blue-500 hover:underline text-sm"
           >
             Buka PDF di tab baru ↗
-          </a>
+          </a> */}
         </div>
       );
     }

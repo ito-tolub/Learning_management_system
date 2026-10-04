@@ -983,3 +983,87 @@ export const calculateFeedbackScore = ({
     chapterDetails: result.chapterDetails,
   };
 };
+
+/*
+ * ==========================
+ * AKSES SINGKAT (< 30 DETIK)
+ * ==========================
+ * Interaksi dengan durasi kumulatif di bawah ambang dianggap tidak valid
+ * (indikasi asal klik). Interaksi tersebut dikeluarkan dari perhitungan SES
+ * dan status selesainya diabaikan, tetapi tetap dilaporkan kepada pengajar
+ * untuk tindak lanjut.
+ */
+export const MIN_VALID_ACCESS_SEC = 30;
+
+export const splitShortInteractions = ({
+  course,
+  activities = [],
+  lectureCompleted = [],
+  thresholdSec = MIN_VALID_ACCESS_SEC,
+}) => {
+  const lectureLookup = new Map();
+
+  for (const chapter of course?.courseContent || []) {
+    const mainIds = new Set(MAIN_LECTURE_IDS_BY_CHAPTER[chapter.chapterId] || []);
+
+    for (const lecture of chapter.chapterContent || []) {
+      if (!lecture?.lectureId) continue;
+
+      const lectureId = String(lecture.lectureId);
+
+      if (!lectureLookup.has(lectureId)) {
+        lectureLookup.set(lectureId, {
+          lecture,
+          chapter,
+          isMain: mainIds.has(lectureId),
+        });
+      }
+    }
+  }
+
+  const completedSet = new Set((lectureCompleted || []).map(String));
+
+  const validActivities = [];
+  const shortIds = new Set();
+  const shortInteractions = [];
+
+  for (const activity of activities) {
+    const lectureId = String(activity?.lectureId || "");
+    const durationSec = Math.max(Number(activity?.totalDuration || 0), 0);
+
+    if (durationSec >= thresholdSec) {
+      validActivities.push(activity);
+      continue;
+    }
+
+    shortIds.add(lectureId);
+
+    const info = lectureLookup.get(lectureId);
+
+    shortInteractions.push({
+      lectureId,
+      lectureTitle: info?.lecture?.lectureTitle || lectureId,
+      chapterId: info?.chapter?.chapterId || null,
+      chapterOrder: Number(info?.chapter?.chapterOrder || 0),
+      isMain: Boolean(info?.isMain),
+      durationSec,
+      expectedDurSec: Math.max(Number(info?.lecture?.lectureDuration || 0) * 60, 0),
+      accessCount: Math.max(Number(activity?.accessCount || 0), 0),
+      markedCompleted: completedSet.has(lectureId),
+      firstAccessAt: activity?.createdAt || null,
+      lastAccessAt: activity?.updatedAt || null,
+    });
+  }
+
+  shortInteractions.sort(
+    (a, b) =>
+      a.chapterOrder - b.chapterOrder || a.lectureId.localeCompare(b.lectureId),
+  );
+
+  return {
+    thresholdSec,
+    validActivities,
+    validCompleted: [...completedSet].filter((id) => !shortIds.has(id)),
+    shortInteractions,
+  };
+};
