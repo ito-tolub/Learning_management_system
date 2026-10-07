@@ -8,6 +8,14 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import Loading from "../../components/student/Loading";
 import { renderAsync } from "docx-preview";
+import {
+  DocxReader,
+  PdfReader,
+} from "../../components/student/DocumentReaders";
+import {
+  attachActivityListeners,
+  useIdleDetector,
+} from "../../hooks/useIdleDetector";
 
 const HYBRID_WEIGHT = {
   vark: 0.7,
@@ -25,7 +33,14 @@ const MAIN_LECTURE_IDS_BY_CHAPTER = {
 };
 
 const RECOMMENDATION_LIMIT = 4;
-const COMPLETION_READING_RATIO = 0.5;
+
+/*
+ * Pencatatan durasi dijeda bila tidak ada klik, gulir, ketikan, atau
+ * gerakan kursor selama IDLE_LIMIT_MS. Hanya berlaku untuk modalitas pada IDLE_MODALITIES;
+ * objek aural dikecualikan karena didengarkan tanpa interaksi.
+ */
+const IDLE_LIMIT_MS = 60 * 1000;
+const IDLE_MODALITIES = ["V", "R", "K"];
 
 // const MENTAL_REFERENCE_VALUE = 84.87;
 const cosineSimilarity = (userVector, objectVector) => {
@@ -682,7 +697,22 @@ const LectureCard = ({
   );
 };
 
-const HtmlPlayer = ({ url, title }) => {
+/*
+ * Pembungkus konten yang aktivitasnya tidak dapat dipantau (iframe dari
+ * situs lain). Saat tampil, deteksi diam dimatikan untuk objek tersebut.
+ */
+const UntrackedFrame = ({ onMount, children }) => {
+  const onMountRef = React.useRef(onMount);
+
+  React.useEffect(() => {
+    onMountRef.current?.();
+  }, []);
+
+  return children;
+};
+
+const HtmlPlayer = ({ url, title, onActivity }) => {
+  const iframeRef = React.useRef(null);
   const [htmlContent, setHtmlContent] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
@@ -718,11 +748,27 @@ const HtmlPlayer = ({ url, title }) => {
   return (
     <div className="w-full">
       <iframe
+        ref={iframeRef}
         srcDoc={htmlContent}
         className="w-full rounded-xl border border-gray-200"
         style={{ height: "600px" }}
         title={title}
         sandbox="allow-scripts allow-same-origin allow-forms"
+        onLoad={() => {
+          /*
+           * Klik, gulir, ketikan, dan gerakan kursor di dalam iframe tidak sampai ke
+           * halaman LMS, jadi pendengarnya dipasang langsung di dokumen
+           * iframe. Bisa dilakukan karena srcDoc se-origin dengan LMS.
+           */
+          try {
+            attachActivityListeners(
+              iframeRef.current?.contentDocument,
+              onActivity,
+            );
+          } catch (error) {
+            console.error("Gagal memantau aktivitas objek HTML:", error);
+          }
+        }}
       />
     </div>
   );
@@ -759,8 +805,8 @@ const getInstructionalCompatibility = (lecture, profile) => {
 
 const Player = () => {
   const [adaptiveVarkVector, setAdaptiveVarkVector] = useState(null);
-  const [activityData, setActivityData] = useState([]);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [, setActivityData] = useState([]);
+  const [, setElapsedSeconds] = useState(0);
   const {
     enrolledCourses,
     calculateChapterTime,
@@ -801,6 +847,9 @@ const Player = () => {
   const lastOpenedLectureRef = useRef(null);
   const mainLectureSliderRef = useRef(null);
   const playerSectionRef = useRef(null);
+  const youtubePlayingRef = useRef(false);
+  // true bila dokumen terpaksa tampil lewat iframe lama (tidak terpantau)
+  const [idleExempt, setIdleExempt] = useState(false);
   const [playerScrollRequest, setPlayerScrollRequest] = useState(0);
   const [assignments, setAssignments] = useState([]);
 
@@ -987,29 +1036,12 @@ const Player = () => {
       const wasCompleted = isCompleted(lectureId);
 
       /*
-       * Lecture yang belum selesai hanya boleh diselesaikan setelah
-       * praja menghabiskan minimal 50% dari lectureDuration.
-       * Lecture yang sudah selesai tetap dapat dibatalkan.
+       * Penandaan selesai tidak dibatasi durasi baca. Durasi akses tetap
+       * dicatat, sehingga rasio durasi terhadap lectureDuration dapat
+       * dihitung terpisah saat analisis.
        */
       if (!wasCompleted) {
-        const fullDurationSeconds =
-          Number(playerData?.lectureDuration || 0) * 60;
-        const requiredDurationSeconds = Math.ceil(
-          fullDurationSeconds * COMPLETION_READING_RATIO,
-        );
-
-        const savedDuration = getSavedReadingSeconds(lectureId);
         const currentSessionDuration = getCurrentSessionSeconds();
-        const totalDuration = savedDuration + currentSessionDuration;
-
-        if (totalDuration < requiredDurationSeconds) {
-          const remaining = requiredDurationSeconds - totalDuration;
-
-          toast.error(
-            `Waktu membaca belum mencapai minimal 50%. Sisa ${remaining} detik.`,
-          );
-          return;
-        }
 
         /*
          * Simpan durasi sesi aktif terlebih dahulu agar backend menerima
@@ -1187,8 +1219,7 @@ const Player = () => {
         return false;
       }
 
-      // Update activityData lokal agar progress 50%
-      // langsung mengikuti hasil autosave.
+      // Update activityData lokal agar langsung mengikuti hasil autosave.
       setActivityData((previous) => {
         const existing = previous.find((item) => item.lectureId === lectureId);
 
@@ -1347,6 +1378,78 @@ const Player = () => {
   }, [playerData?.lectureId]);
 
   // ======================================================
+  // 2b. JEDA DURASI SAAT PRAJA DIAM (TANPA KLIK / GULIR / KETIK / KURSOR)
+  // ======================================================
+  useEffect(() => {
+    setIdleExempt(false);
+    youtubePlayingRef.current = false;
+  }, [playerData?.lectureId]);
+
+  const idleDetectionEnabled =
+    !!playerData?.lectureId &&
+    IDLE_MODALITIES.includes(normalizeVark(playerData.tags)) &&
+    !idleExempt;
+
+  // Video/audio yang sedang diputar dianggap aktivitas, termasuk yang
+  // berada di dalam objek HTML.
+  const isMediaPlaying = () => {
+    if (youtubePlayingRef.current) return true;
+
+    const root = playerSectionRef.current;
+
+    if (!root) return false;
+
+    const documents = [root];
+
+    root.querySelectorAll("iframe").forEach((frame) => {
+      try {
+        if (frame.contentDocument) documents.push(frame.contentDocument);
+      } catch {
+        // iframe dari situs lain tidak dapat diperiksa
+      }
+    });
+
+    return documents.some((scope) =>
+      Array.from(scope.querySelectorAll("video, audio")).some(
+        (media) => !media.paused && !media.ended,
+      ),
+    );
+  };
+
+  const { isIdle, markActivity } = useIdleDetector({
+    enabled: idleDetectionEnabled,
+    limitMs: IDLE_LIMIT_MS,
+    resetKey: playerData?.lectureId,
+    isMediaPlaying,
+    onIdle: (idleAt) => {
+      /*
+       * Durasi dihitung sampai batas diam (aktivitas terakhir +
+       * IDLE_LIMIT_MS), bukan sampai saat pemeriksaan berjalan.
+       */
+      if (activeStartRef.current) {
+        const end = Math.max(
+          activeStartRef.current,
+          Math.min(Date.now(), idleAt),
+        );
+
+        accumulatedActiveMsRef.current += end - activeStartRef.current;
+        activeStartRef.current = null;
+      }
+
+      flushActivityDuration(playerData?.lectureId);
+    },
+    onActive: () => {
+      if (
+        playerData?.lectureId &&
+        !activeStartRef.current &&
+        document.visibilityState === "visible"
+      ) {
+        activeStartRef.current = Date.now();
+      }
+    },
+  });
+
+  // ======================================================
   // 3. AUTOSAVE DURASI SETIAP 30 DETIK
   // ======================================================
   useEffect(() => {
@@ -1436,6 +1539,10 @@ const Player = () => {
           videoId={ytId}
           opts={{ playerVars: { autoplay: 1 } }}
           iframeClassName="w-full aspect-video rounded-xl"
+          onStateChange={(event) => {
+            // 1 = sedang diputar
+            youtubePlayingRef.current = event.data === 1;
+          }}
         />
       );
     }
@@ -1443,22 +1550,40 @@ const Player = () => {
     // Word document
     if (url.match(/\.docx?/i)) {
       const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
+      const officeViewer = (
+        <iframe
+          src={viewerUrl}
+          className="w-full rounded-xl border border-gray-200"
+          style={{ height: "100vh" }}
+          title={playerData.lectureTitle}
+        />
+      );
+      // Format .doc lama tidak dapat dirender di halaman.
+      const isDocx = /\.docx/i.test(url);
+
       return (
         <div className="w-full">
-          <iframe
-            src={viewerUrl}
-            className="w-full rounded-xl border border-gray-200"
-            style={{ height: "100vh" }}
-            title={playerData.lectureTitle}
-          />
-          <a
+          {isDocx ? (
+            <DocxReader
+              key={url}
+              url={url}
+              title={playerData.lectureTitle}
+              fallback={officeViewer}
+              onFallback={() => setIdleExempt(true)}
+            />
+          ) : (
+            <UntrackedFrame onMount={() => setIdleExempt(true)}>
+              {officeViewer}
+            </UntrackedFrame>
+          )}
+          {/* <a
             href={url}
             target="_blank"
             rel="noreferrer"
             className="mt-2 inline-block text-blue-500 hover:underline text-sm"
           >
             Download file ↗
-          </a>
+          </a> */}
         </div>
       );
     }
@@ -1467,19 +1592,27 @@ const Player = () => {
     if (url.match(/\.pdf/i)) {
       return (
         <div className="w-full">
-          <div
-            className="w-full mx-auto rounded-xl border border-gray-200 overflow-hidden bg-gray-50"
-            style={{
-              aspectRatio: "1 / 1.4142", // rasio halaman A4 portrait
-              maxHeight: "80vh",
-            }}
-          >
-            <iframe
-              src={url}
-              className="w-full h-full"
-              title={playerData.lectureTitle}
-            />
-          </div>
+          <PdfReader
+            key={url}
+            url={url}
+            title={playerData.lectureTitle}
+            onFallback={() => setIdleExempt(true)}
+            fallback={
+              <div
+                className="w-full mx-auto rounded-xl border border-gray-200 overflow-hidden bg-gray-50"
+                style={{
+                  aspectRatio: "1 / 1.4142", // rasio halaman A4 portrait
+                  maxHeight: "80vh",
+                }}
+              >
+                <iframe
+                  src={url}
+                  className="w-full h-full"
+                  title={playerData.lectureTitle}
+                />
+              </div>
+            }
+          />
           {/* <a
             href={url}
             target="_blank"
@@ -1523,7 +1656,13 @@ const Player = () => {
     }
 
     if (url.match(/\.html/i) || url.includes("/raw/upload/")) {
-      return <HtmlPlayer url={url} title={playerData.lectureTitle} />;
+      return (
+        <HtmlPlayer
+          url={url}
+          title={playerData.lectureTitle}
+          onActivity={markActivity}
+        />
+      );
     }
 
     // Cloudinary tanpa ekstensi — asumsikan video, fix path jika perlu
@@ -1762,54 +1901,6 @@ const Player = () => {
     return playerData.lectureId === lecture.lectureId;
   };
 
-  const getSavedReadingSeconds = (lectureId) => {
-    const activity = activityData?.find((item) => item.lectureId === lectureId);
-
-    return Number(activity?.totalDuration || 0);
-  };
-
-  const fullReadingSeconds = playerData
-    ? Number(playerData.lectureDuration || 0) * 60
-    : 0;
-
-  // Tombol selesai aktif setelah minimal 60% durasi objek terpenuhi.
-  const requiredReadingSeconds = Math.ceil(
-    fullReadingSeconds * COMPLETION_READING_RATIO,
-  );
-
-  const savedReadingSeconds = playerData
-    ? getSavedReadingSeconds(playerData.lectureId)
-    : 0;
-
-  const totalReadingSeconds = savedReadingSeconds + elapsedSeconds;
-
-  const remainingReadingSeconds = Math.max(
-    0,
-    requiredReadingSeconds - totalReadingSeconds,
-  );
-
-  const canCompleteLecture =
-    !!playerData &&
-    (isCompleted(playerData.lectureId) ||
-      totalReadingSeconds >= requiredReadingSeconds);
-
-  const formatRemainingTime = (seconds) => {
-    const totalSeconds = Math.max(0, Math.ceil(seconds));
-
-    const minutes = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-
-    if (minutes > 0 && secs > 0) {
-      return `${minutes} menit ${secs} detik`;
-    }
-
-    if (minutes > 0) {
-      return `${minutes} menit`;
-    }
-
-    return `${secs} detik`;
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <div className="flex flex-col md:flex-row flex-grow">
@@ -1968,6 +2059,19 @@ const Player = () => {
             >
               <div className="p-1">{renderPlayer()}</div>
 
+              {isIdle && (
+                <div
+                  role="status"
+                  className="mx-1 mb-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800"
+                >
+                  <span className="font-semibold">
+                    Pencatatan waktu belajar dijeda.
+                  </span>{" "}
+                  Tidak ada aktivitas selama 1 menit. Gerakkan kursor, klik,
+                  atau gulir untuk melanjutkan.
+                </div>
+              )}
+
               <div className="flex justify-between items-center px-4 py-3 border-t border-gray-100">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">
@@ -1983,39 +2087,17 @@ const Player = () => {
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5">
-                  {/* Informasi waktu belajar minimal */}
-                  {!isCompleted(playerData.lectureId) && (
-                    <p
-                      className={`text-[11px] font-medium ${
-                        canCompleteLecture ? "text-green-600" : "text-amber-600"
-                      }`}
-                    >
-                      {canCompleteLecture
-                        ? "✓ Waktu baca minimal terpenuhi"
-                        : `Waktu baca minimal • Sisa ${formatRemainingTime(
-                            remainingReadingSeconds,
-                          )}`}
-                    </p>
-                  )}
-
                   <button
                     onClick={() => toggleLectureCompleted(playerData.lectureId)}
-                    disabled={!canCompleteLecture}
                     title={
                       isCompleted(playerData.lectureId)
                         ? "Klik untuk membatalkan"
-                        : canCompleteLecture
-                          ? "Tandai sebagai selesai"
-                          : `Waktu belajar minimal belum terpenuhi. Sisa ${formatRemainingTime(
-                              remainingReadingSeconds,
-                            )}`
+                        : "Tandai sebagai selesai"
                     }
                     className={`group px-4 py-2 rounded-full text-sm font-medium transition-all select-none ${
                       isCompleted(playerData.lectureId)
                         ? "bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600 border border-green-200 hover:border-red-200"
-                        : canCompleteLecture
-                          ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
                     }`}
                   >
                     {isCompleted(playerData.lectureId) ? (
@@ -2026,10 +2108,8 @@ const Player = () => {
                           ✕ Batalkan
                         </span>
                       </>
-                    ) : canCompleteLecture ? (
-                      "Tandai Selesai"
                     ) : (
-                      "Belum dapat diselesaikan"
+                      "Tandai Selesai"
                     )}
                   </button>
                 </div>
