@@ -154,9 +154,20 @@ const ShortAccessDonut = ({ segments, total }) => {
   let offset = 0;
 
   return (
-    <svg viewBox="0 0 120 120" className="h-36 w-36 shrink-0" role="img"
-      aria-label="Komposisi durasi akses objek pembelajaran">
-      <circle cx="60" cy="60" r={radius} fill="none" stroke="#f3f4f6" strokeWidth="16" />
+    <svg
+      viewBox="0 0 120 120"
+      className="h-36 w-36 shrink-0"
+      role="img"
+      aria-label="Komposisi durasi akses objek pembelajaran"
+    >
+      <circle
+        cx="60"
+        cy="60"
+        r={radius}
+        fill="none"
+        stroke="#f3f4f6"
+        strokeWidth="16"
+      />
 
       {total > 0 &&
         segments
@@ -183,10 +194,23 @@ const ShortAccessDonut = ({ segments, total }) => {
             return circle;
           })}
 
-      <text x="60" y="56" textAnchor="middle" className="fill-gray-800" fontSize="20" fontWeight="700">
+      <text
+        x="60"
+        y="56"
+        textAnchor="middle"
+        className="fill-gray-800"
+        fontSize="20"
+        fontWeight="700"
+      >
         {total}
       </text>
-      <text x="60" y="72" textAnchor="middle" className="fill-gray-400" fontSize="9">
+      <text
+        x="60"
+        y="72"
+        textAnchor="middle"
+        className="fill-gray-400"
+        fontSize="9"
+      >
         objek dibuka
       </text>
     </svg>
@@ -482,7 +506,10 @@ const StudentEngagement = () => {
                   <span>Interaksi</span>
                   <span>{kelasSummary[kelas].interaksi}%</span>
                 </div>
-                <PctBar value={kelasSummary[kelas].interaksi} showValue={false} />
+                <PctBar
+                  value={kelasSummary[kelas].interaksi}
+                  showValue={false}
+                />
               </div>
 
               <div>
@@ -490,7 +517,10 @@ const StudentEngagement = () => {
                   <span>Penyelesaian Materi</span>
                   <span>{kelasSummary[kelas].penyelesaian}%</span>
                 </div>
-                <PctBar value={kelasSummary[kelas].penyelesaian} showValue={false} />
+                <PctBar
+                  value={kelasSummary[kelas].penyelesaian}
+                  showValue={false}
+                />
               </div>
 
               <div>
@@ -498,7 +528,10 @@ const StudentEngagement = () => {
                   <span>Presensi</span>
                   <span>{kelasSummary[kelas].presensi}%</span>
                 </div>
-                <PctBar value={kelasSummary[kelas].presensi} showValue={false} />
+                <PctBar
+                  value={kelasSummary[kelas].presensi}
+                  showValue={false}
+                />
               </div>
 
               <div>
@@ -716,7 +749,9 @@ const StudentEngagement = () => {
                         {s.feedback}%
                       </td>
 
-                      <td className="px-4 py-3 text-center text-gray-600">-</td>
+                      <td className="px-4 py-3 text-center text-gray-600">
+                        {s.presensi}%                        
+                      </td>
 
                       <td className="px-4 py-3 text-center text-gray-500 font-mono text-xs">
                         {fmtDur(s.totalDurasiDetik)}
@@ -768,29 +803,75 @@ const StudentEngagement = () => {
                             {(() => {
                               const tab = detailTabs[rowKey] || "ringkasan";
                               const setTab = (value) =>
-                                setDetailTabs((prev) => ({ ...prev, [rowKey]: value }));
+                                setDetailTabs((prev) => ({
+                                  ...prev,
+                                  [rowKey]: value,
+                                }));
                               const isG2 = s.kelas?.toUpperCase() === "G2";
-                              const total = s.shortInteraction?.totalAccessed || 0;
-                              const valid = s.shortInteraction?.validCount ?? Math.max(total - shortCount, 0);
-                              const threshold = s.shortInteraction?.thresholdSec || 30;
-                              const pct = (n) => (total > 0 ? Math.round((n / total) * 100) : 0);
+                              const total =
+                                s.shortInteraction?.totalAccessed || 0;
+                              const valid =
+                                s.shortInteraction?.validCount ??
+                                Math.max(total - shortCount, 0);
+                              const threshold =
+                                s.shortInteraction?.thresholdSec || 30;
+                              const pct = (n) =>
+                                total > 0 ? Math.round((n / total) * 100) : 0;
                               const segments = [
-                                { label: `Dibaca ≥ ${threshold} detik`, value: valid, color: "#10b981", note: "Dihitung dalam SES" },
-                                { label: `Dibuka < ${threshold} detik`, value: shortCount - shortCompleted, color: "#f59e0b", note: "Tidak dihitung SES" },
-                                { label: `Dibuka < ${threshold} detik, ditandai selesai`, value: shortCompleted, color: "#e11d48", note: "Tidak dihitung SES; perlu tindak lanjut" },
+                                {
+                                  label: `Dibaca ≥ ${threshold} detik`,
+                                  value: valid,
+                                  color: "#10b981",
+                                  note: "Dihitung dalam SES",
+                                },
+                                {
+                                  label: `Dibuka < ${threshold} detik`,
+                                  value: shortCount - shortCompleted,
+                                  color: "#f59e0b",
+                                  note: "Tidak dihitung SES",
+                                },
+                                {
+                                  label: `Dibuka < ${threshold} detik, ditandai selesai`,
+                                  value: shortCompleted,
+                                  color: "#e11d48",
+                                  note: "Tidak dihitung SES; perlu tindak lanjut",
+                                },
                               ];
                               const tabs = [
                                 { id: "ringkasan", label: "Ringkasan" },
-                                { id: "acuan", label: "Objek Acuan", count: nonMainDetail.length },
-                                { id: "singkat", label: `Akses < ${threshold} dtk`, count: shortCount, alert: shortCompleted > 0 },
-                                { id: "eksplorasi", label: "Eksplorasi", count: s.exploration?.count || 0 },
-                                ...(isG2 ? [{ id: "rekomendasi", label: "Rekomendasi" }] : []),
+                                {
+                                  id: "acuan",
+                                  label: "Objek Acuan",
+                                  count: nonMainDetail.length,
+                                },
+                                {
+                                  id: "singkat",
+                                  label: `Akses < ${threshold} dtk`,
+                                  count: shortCount,
+                                  alert: shortCompleted > 0,
+                                },
+                                {
+                                  id: "eksplorasi",
+                                  label: "Eksplorasi",
+                                  count: s.exploration?.count || 0,
+                                },
+                                ...(isG2
+                                  ? [
+                                      {
+                                        id: "rekomendasi",
+                                        label: "Rekomendasi",
+                                      },
+                                    ]
+                                  : []),
                               ];
 
                               return (
                                 <>
                                   {/* TAB BAR */}
-                                  <div className="mb-4 flex flex-wrap gap-1 border-b border-blue-100" role="tablist">
+                                  <div
+                                    className="mb-4 flex flex-wrap gap-1 border-b border-blue-100"
+                                    role="tablist"
+                                  >
                                     {tabs.map((t) => (
                                       <button
                                         key={t.id}
@@ -806,7 +887,9 @@ const StudentEngagement = () => {
                                       >
                                         {t.label}
                                         {t.count > 0 && (
-                                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${t.alert ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-600"}`}>
+                                          <span
+                                            className={`rounded-full px-1.5 py-0.5 text-[10px] ${t.alert ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-600"}`}
+                                          >
                                             {t.count}
                                           </span>
                                         )}
@@ -818,40 +901,85 @@ const StudentEngagement = () => {
                                   {tab === "ringkasan" && (
                                     <div className="space-y-4">
                                       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                                        <StatBox label="SES" value={`${s.ses ?? 0}%`} note={s.kategori} />
-                                        <StatBox label="Objek acuan selesai" value={`${s.completionEarned ?? 0}/${s.completionPossible ?? 0}`} />
-                                        <StatBox label="Objek eksplorasi" value={s.exploration?.count || 0} />
+                                        <StatBox
+                                          label="SES"
+                                          value={`${s.ses ?? 0}%`}
+                                          note={s.kategori}
+                                        />
+                                        <StatBox
+                                          label="Objek acuan selesai"
+                                          value={`${s.completionEarned ?? 0}/${s.completionPossible ?? 0}`}
+                                        />
+                                        <StatBox
+                                          label="Objek eksplorasi"
+                                          value={s.exploration?.count || 0}
+                                        />
                                         {isG2 ? (
                                           <StatBox
                                             label="Kepatuhan rekomendasi"
-                                            value={s.recommendationAdherence?.durationPercent == null ? "—" : `${s.recommendationAdherence.durationPercent}%`}
+                                            value={
+                                              s.recommendationAdherence
+                                                ?.durationPercent == null
+                                                ? "—"
+                                                : `${s.recommendationAdherence.durationPercent}%`
+                                            }
                                           />
                                         ) : (
-                                          <StatBox label="Total durasi acuan" value={fmtDur(s.totalDurasiDetik)} />
+                                          <StatBox
+                                            label="Total durasi acuan"
+                                            value={fmtDur(s.totalDurasiDetik)}
+                                          />
                                         )}
                                       </div>
 
                                       <div className="rounded-xl border border-gray-200 bg-white p-4">
-                                        <p className="text-xs font-semibold text-gray-800">Durasi akses objek pembelajaran</p>
+                                        <p className="text-xs font-semibold text-gray-800">
+                                          Durasi akses objek pembelajaran
+                                        </p>
                                         <p className="mt-1 text-[11px] text-gray-500">
-                                          Objek yang dibuka kurang dari {threshold} detik (durasi kumulatif) dianggap
-                                          belum dipelajari: tidak dihitung dalam SES dan status selesainya diabaikan.
+                                          Objek yang dibuka kurang dari{" "}
+                                          {threshold} detik (durasi kumulatif)
+                                          dianggap belum dipelajari: tidak
+                                          dihitung dalam SES dan status
+                                          selesainya diabaikan.
                                         </p>
                                         {total === 0 ? (
-                                          <p className="mt-3 text-xs text-gray-400">Praja belum membuka objek pembelajaran.</p>
+                                          <p className="mt-3 text-xs text-gray-400">
+                                            Praja belum membuka objek
+                                            pembelajaran.
+                                          </p>
                                         ) : (
                                           <div className="mt-3 flex flex-wrap items-center gap-6">
-                                            <ShortAccessDonut segments={segments} total={total} />
+                                            <ShortAccessDonut
+                                              segments={segments}
+                                              total={total}
+                                            />
                                             <ul className="space-y-2.5 text-xs">
                                               {segments.map((seg) => (
-                                                <li key={seg.label} className="flex items-start gap-2">
-                                                  <span className="mt-0.5 h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: seg.color }} />
+                                                <li
+                                                  key={seg.label}
+                                                  className="flex items-start gap-2"
+                                                >
+                                                  <span
+                                                    className="mt-0.5 h-3 w-3 shrink-0 rounded-sm"
+                                                    style={{
+                                                      backgroundColor:
+                                                        seg.color,
+                                                    }}
+                                                  />
                                                   <div>
                                                     <p className="font-medium text-gray-800">
-                                                      {seg.label}: <span className="font-semibold">{seg.value} objek</span>{" "}
-                                                      <span className="text-gray-400">({pct(seg.value)}%)</span>
+                                                      {seg.label}:{" "}
+                                                      <span className="font-semibold">
+                                                        {seg.value} objek
+                                                      </span>{" "}
+                                                      <span className="text-gray-400">
+                                                        ({pct(seg.value)}%)
+                                                      </span>
                                                     </p>
-                                                    <p className="text-[11px] text-gray-500">{seg.note}</p>
+                                                    <p className="text-[11px] text-gray-500">
+                                                      {seg.note}
+                                                    </p>
                                                   </div>
                                                 </li>
                                               ))}
@@ -859,8 +987,13 @@ const StudentEngagement = () => {
                                           </div>
                                         )}
                                         {shortCount > 0 && (
-                                          <button type="button" onClick={() => setTab("singkat")} className="mt-3 text-[11px] font-medium text-rose-700 hover:underline">
-                                            Lihat {shortCount} objek yang dibuka kurang dari {threshold} detik →
+                                          <button
+                                            type="button"
+                                            onClick={() => setTab("singkat")}
+                                            className="mt-3 text-[11px] font-medium text-rose-700 hover:underline"
+                                          >
+                                            Lihat {shortCount} objek yang dibuka
+                                            kurang dari {threshold} detik →
                                           </button>
                                         )}
                                       </div>
@@ -871,392 +1004,442 @@ const StudentEngagement = () => {
                                   {tab === "acuan" && (
                                     <div>
                                       {/* DETAIL TARGET */}
-                            {nonMainDetail.length > 0 && (
-                              <table className="w-full text-xs border-collapse">
-                                <thead>
-                                  <tr className="text-gray-500 border-b border-blue-100">
-                                    <th className="text-left pb-2 pr-4">
-                                      Objek Pembelajaran
-                                    </th>
+                                      {nonMainDetail.length > 0 && (
+                                        <table className="w-full text-xs border-collapse">
+                                          <thead>
+                                            <tr className="text-gray-500 border-b border-blue-100">
+                                              <th className="text-left pb-2 pr-4">
+                                                Objek Pembelajaran
+                                              </th>
 
-                                    <th className="text-center pb-2 px-4">
-                                      Peran
-                                    </th>
+                                              <th className="text-center pb-2 px-4">
+                                                Peran
+                                              </th>
 
-                                    <th className="text-center pb-2 px-4">
-                                      Diakses
-                                    </th>
+                                              <th className="text-center pb-2 px-4">
+                                                Diakses
+                                              </th>
 
-                                    <th className="text-center pb-2 px-4">
-                                      Selesai
-                                    </th>
+                                              <th className="text-center pb-2 px-4">
+                                                Selesai
+                                              </th>
 
-                                    <th className="text-left pb-2 px-4 w-48">
-                                      Durasi Baca Materi
-                                    </th>
+                                              <th className="text-left pb-2 px-4 w-48">
+                                                Durasi Baca Materi
+                                              </th>
 
-                                    <th className="text-center pb-2 px-4">
-                                      % Durasi
-                                    </th>
-                                  </tr>
-                                </thead>
+                                              <th className="text-center pb-2 px-4">
+                                                % Durasi
+                                              </th>
+                                            </tr>
+                                          </thead>
 
-                                <tbody>
-                                  {nonMainDetail.map((d, di) => (
-                                    <tr
-                                      key={`${d.courseId || "course"}-${d.chapterId || "chapter"}-${d.lectureId || di}`}
-                                      className="hover:bg-blue-100/40"
-                                    >
-                                      <td className="py-2 pr-4 font-medium text-gray-700">
-                                        <div>{d.lectureTitle}</div>
+                                          <tbody>
+                                            {nonMainDetail.map((d, di) => (
+                                              <tr
+                                                key={`${d.courseId || "course"}-${d.chapterId || "chapter"}-${d.lectureId || di}`}
+                                                className="hover:bg-blue-100/40"
+                                              >
+                                                <td className="py-2 pr-4 font-medium text-gray-700">
+                                                  <div>{d.lectureTitle}</div>
 
-                                        <div className="text-[10px] font-normal text-gray-400">
-                                          Pertemuan {d.chapterOrder || "—"}
-                                          {d.courseTitle
-                                            ? ` • ${d.courseTitle}`
-                                            : ""}
-                                        </div>
-                                      </td>
+                                                  <div className="text-[10px] font-normal text-gray-400">
+                                                    Pertemuan{" "}
+                                                    {d.chapterOrder || "—"}
+                                                    {d.courseTitle
+                                                      ? ` • ${d.courseTitle}`
+                                                      : ""}
+                                                  </div>
+                                                </td>
 
-                                      <td className="py-2 px-4 text-center">
-                                        <span
-                                          className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${roleClass(
-                                            d.role,
-                                          )}`}
-                                        >
-                                          {roleLabel(d.role)}
-                                        </span>
-                                      </td>
+                                                <td className="py-2 px-4 text-center">
+                                                  <span
+                                                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${roleClass(
+                                                      d.role,
+                                                    )}`}
+                                                  >
+                                                    {roleLabel(d.role)}
+                                                  </span>
+                                                </td>
 
-                                      <td className="py-2 px-4 text-center text-gray-600">
-                                        {d.accessCount || 0}x
-                                      </td>
+                                                <td className="py-2 px-4 text-center text-gray-600">
+                                                  {d.accessCount || 0}x
+                                                </td>
 
-                                      <td className="py-2 px-4 text-center text-gray-600">
-                                        {d.selesai ? "✓" : "—"}
-                                      </td>
+                                                <td className="py-2 px-4 text-center text-gray-600">
+                                                  {d.selesai ? "✓" : "—"}
+                                                </td>
 
-                                      <td className="py-2 px-4">
-                                        <span className="font-mono text-gray-700">
-                                          {fmtDur(d.actualDurSec)}
-                                        </span>
+                                                <td className="py-2 px-4">
+                                                  <span className="font-mono text-gray-700">
+                                                    {fmtDur(d.actualDurSec)}
+                                                  </span>
 
-                                        <span className="text-gray-400 ml-1">
-                                          / {fmtDur(d.expectedDurSec)}
-                                        </span>
-                                      </td>
+                                                  <span className="text-gray-400 ml-1">
+                                                    / {fmtDur(d.expectedDurSec)}
+                                                  </span>
+                                                </td>
 
-                                      <td className="py-2 px-4">
-                                        <DurBar
-                                          actual={d.actualDurSec}
-                                          expected={d.expectedDurSec}
-                                        />
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
+                                                <td className="py-2 px-4">
+                                                  <DurBar
+                                                    actual={d.actualDurSec}
+                                                    expected={d.expectedDurSec}
+                                                  />
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
 
-                                <tfoot>
-                                  <tr className="border-t-2 border-blue-200 font-semibold text-gray-700">
-                                    <td className="pt-2 pr-4">Total target</td>
+                                          <tfoot>
+                                            <tr className="border-t-2 border-blue-200 font-semibold text-gray-700">
+                                              <td className="pt-2 pr-4">
+                                                Total target
+                                              </td>
 
-                                    <td className="pt-2 px-4 text-center">—</td>
+                                              <td className="pt-2 px-4 text-center">
+                                                —
+                                              </td>
 
-                                    <td className="pt-2 px-4 text-center">
-                                      {nonMainDetail.reduce(
-                                        (a, d) => a + (d.accessCount || 0),
-                                        0,
+                                              <td className="pt-2 px-4 text-center">
+                                                {nonMainDetail.reduce(
+                                                  (a, d) =>
+                                                    a + (d.accessCount || 0),
+                                                  0,
+                                                )}
+                                                x
+                                              </td>
+
+                                              <td className="pt-2 px-4 text-center">
+                                                {s.completionEarned ?? 0}
+
+                                                {" / "}
+
+                                                {s.completionPossible ?? 0}
+                                              </td>
+
+                                              <td className="pt-2 px-4 font-mono">
+                                                {fmtDur(s.totalDurasiDetik)}
+
+                                                <span className="text-gray-400 ml-1">
+                                                  /{" "}
+                                                  {fmtDur(
+                                                    s.targetExpectedDurasiDetik ||
+                                                      0,
+                                                  )}
+                                                </span>
+                                              </td>
+
+                                              <td className="pt-2 px-4">
+                                                <PctBar value={s.interaksi} />
+                                              </td>
+                                            </tr>
+                                          </tfoot>
+                                        </table>
                                       )}
-                                      x
-                                    </td>
 
-                                    <td className="pt-2 px-4 text-center">
-                                      {s.completionEarned ?? 0}
-
-                                      {" / "}
-
-                                      {s.completionPossible ?? 0}
-                                    </td>
-
-                                    <td className="pt-2 px-4 font-mono">
-                                      {fmtDur(s.totalDurasiDetik)}
-
-                                      <span className="text-gray-400 ml-1">
-                                        /{" "}
-                                        {fmtDur(
-                                          s.targetExpectedDurasiDetik || 0,
-                                        )}
-                                      </span>
-                                    </td>
-
-                                    <td className="pt-2 px-4">
-                                      <PctBar value={s.interaksi} />
-                                    </td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            )}
-
-                            
                                       {nonMainDetail.length === 0 && (
-                                        <p className="text-xs text-gray-400">Belum ada objek acuan.</p>
+                                        <p className="text-xs text-gray-400">
+                                          Belum ada objek acuan.
+                                        </p>
                                       )}
                                     </div>
                                   )}
 
                                   {/* TAB: AKSES SINGKAT */}
-                                  {tab === "singkat" && (
-                                    shortCount > 0 ? (
+                                  {tab === "singkat" &&
+                                    (shortCount > 0 ? (
                                       <div className="rounded-xl border border-rose-200 bg-white p-4">
                                         <p className="mb-3 text-[11px] text-gray-500">
-                                          Objek berikut dibuka kurang dari {threshold} detik (durasi kumulatif), tidak
-                                          dihitung dalam SES, dan status selesainya diabaikan. Baris dengan status "Ya"
-                                          pada kolom Ditandai selesai perlu ditindaklanjuti.
+                                          Objek berikut dibuka kurang dari{" "}
+                                          {threshold} detik (durasi kumulatif),
+                                          tidak dihitung dalam SES, dan status
+                                          selesainya diabaikan. Baris dengan
+                                          status "Ya" pada kolom Ditandai
+                                          selesai perlu ditindaklanjuti.
                                         </p>
                                         <table className="w-full text-xs border-collapse">
-                                        <thead>
-                                          <tr className="text-gray-500 border-b border-rose-100">
-                                            <th className="text-left pb-2 pr-4">Pertemuan</th>
-                                            <th className="text-left pb-2 px-4">Objek</th>
-                                            <th className="text-center pb-2 px-4">Durasi</th>
-                                            <th className="text-center pb-2 px-4">Akses</th>
-                                            <th className="text-center pb-2 px-4">Ditandai selesai</th>
-                                            <th className="text-center pb-2 px-4">Akses pertama</th>
-                                          </tr>
-                                        </thead>
-
-                                        <tbody>
-                                          {(s.shortInteraction?.details || []).map((item) => (
-                                            <tr
-                                              key={`${item.courseId}-${item.lectureId}`}
-                                              className="border-b border-rose-50 last:border-0"
-                                            >
-                                              <td className="py-1.5 pr-4 text-gray-600">
-                                                {item.chapterOrder ? `Pertemuan ${item.chapterOrder}` : "—"}
-                                              </td>
-                                              <td className="py-1.5 px-4 text-gray-800">
-                                                {item.lectureTitle}
-                                                {item.isMain && (
-                                                  <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
-                                                    Utama
-                                                  </span>
-                                                )}
-                                              </td>
-                                              <td className="py-1.5 px-4 text-center font-mono text-rose-700">
-                                                {item.durationSec} dtk
-                                              </td>
-                                              <td className="py-1.5 px-4 text-center text-gray-600">
-                                                {item.accessCount}x
-                                              </td>
-                                              <td className="py-1.5 px-4 text-center">
-                                                {item.markedCompleted ? (
-                                                  <span className="text-rose-700 font-medium">Ya</span>
-                                                ) : (
-                                                  <span className="text-gray-400">Tidak</span>
-                                                )}
-                                              </td>
-                                              <td className="py-1.5 px-4 text-center text-gray-500">
-                                                {fmtDateTime(item.firstAccessAt)}
-                                              </td>
+                                          <thead>
+                                            <tr className="text-gray-500 border-b border-rose-100">
+                                              <th className="text-left pb-2 pr-4">
+                                                Pertemuan
+                                              </th>
+                                              <th className="text-left pb-2 px-4">
+                                                Objek
+                                              </th>
+                                              <th className="text-center pb-2 px-4">
+                                                Durasi
+                                              </th>
+                                              <th className="text-center pb-2 px-4">
+                                                Akses
+                                              </th>
+                                              <th className="text-center pb-2 px-4">
+                                                Ditandai selesai
+                                              </th>
+                                              <th className="text-center pb-2 px-4">
+                                                Akses pertama
+                                              </th>
                                             </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
+                                          </thead>
+
+                                          <tbody>
+                                            {(
+                                              s.shortInteraction?.details || []
+                                            ).map((item) => (
+                                              <tr
+                                                key={`${item.courseId}-${item.lectureId}`}
+                                                className="border-b border-rose-50 last:border-0"
+                                              >
+                                                <td className="py-1.5 pr-4 text-gray-600">
+                                                  {item.chapterOrder
+                                                    ? `Pertemuan ${item.chapterOrder}`
+                                                    : "—"}
+                                                </td>
+                                                <td className="py-1.5 px-4 text-gray-800">
+                                                  {item.lectureTitle}
+                                                  {item.isMain && (
+                                                    <span className="ml-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
+                                                      Utama
+                                                    </span>
+                                                  )}
+                                                </td>
+                                                <td className="py-1.5 px-4 text-center font-mono text-rose-700">
+                                                  {item.durationSec} dtk
+                                                </td>
+                                                <td className="py-1.5 px-4 text-center text-gray-600">
+                                                  {item.accessCount}x
+                                                </td>
+                                                <td className="py-1.5 px-4 text-center">
+                                                  {item.markedCompleted ? (
+                                                    <span className="text-rose-700 font-medium">
+                                                      Ya
+                                                    </span>
+                                                  ) : (
+                                                    <span className="text-gray-400">
+                                                      Tidak
+                                                    </span>
+                                                  )}
+                                                </td>
+                                                <td className="py-1.5 px-4 text-center text-gray-500">
+                                                  {fmtDateTime(
+                                                    item.firstAccessAt,
+                                                  )}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
                                       </div>
                                     ) : (
-                                      <p className="text-xs text-gray-400">Tidak ada akses kurang dari {threshold} detik.</p>
-                                    )
-                                  )}
+                                      <p className="text-xs text-gray-400">
+                                        Tidak ada akses kurang dari {threshold}{" "}
+                                        detik.
+                                      </p>
+                                    ))}
 
                                   {/* TAB: EKSPLORASI */}
-                                  {tab === "eksplorasi" && (
-                                    (s.exploration?.count || 0) > 0 ? (
+                                  {tab === "eksplorasi" &&
+                                    ((s.exploration?.count || 0) > 0 ? (
                                       <div className="rounded-xl border border-gray-200 bg-white/80 p-4">
                                         <p className="text-[11px] text-gray-500">
-                                          Objek di luar target SES. Berlaku untuk G1 dan G2 dan tidak menambah atau
-                                          mengurangi SES utama.
+                                          Objek di luar target SES. Berlaku
+                                          untuk G1 dan G2 dan tidak menambah
+                                          atau mengurangi SES utama.
                                         </p>
                                         {/* METRIK EXPLORATION */}
-                                <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
-                                  <StatBox
-                                    label="Objek dieksplorasi"
-                                    value={s.exploration?.count || 0}
-                                  />
+                                        <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
+                                          <StatBox
+                                            label="Objek dieksplorasi"
+                                            value={s.exploration?.count || 0}
+                                          />
 
-                                  <StatBox
-                                    label="Total akses"
-                                    value={`${s.exploration?.accessCount || 0}x`}
-                                  />
+                                          <StatBox
+                                            label="Total akses"
+                                            value={`${s.exploration?.accessCount || 0}x`}
+                                          />
 
-                                  <StatBox
-                                    label="Objek selesai"
-                                    value={s.exploration?.completedCount || 0}
-                                  />
+                                          <StatBox
+                                            label="Objek selesai"
+                                            value={
+                                              s.exploration?.completedCount || 0
+                                            }
+                                          />
 
-                                  <StatBox
-                                    label="Rata-rata interaksi"
-                                    value={`${s.exploration?.averageInteractionPercent || 0}%`}
-                                  />
+                                          <StatBox
+                                            label="Rata-rata interaksi"
+                                            value={`${s.exploration?.averageInteractionPercent || 0}%`}
+                                          />
 
-                                  <StatBox
-                                    label="Durasi eksplorasi"
-                                    value={fmtDur(
-                                      s.exploration?.durationSec || 0,
-                                    )}
-                                  />
-                                </div>
-
-                                {/* TOP 4 EXPLORATION */}
-                                {(s.exploration?.top4?.length || 0) > 0 && (
-                                  <div className="mt-4">
-                                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                                      Top-4 objek eksplorasi berdasarkan
-                                      interaksi
-                                    </p>
-
-                                    <div className="grid gap-2 md:grid-cols-2">
-                                      {s.exploration.top4.map((item, index) => (
-                                        <div
-                                          key={`${item.courseId || "course"}-${item.lectureId}-${index}`}
-                                          className="rounded-lg border border-gray-100 bg-gray-50 p-3"
-                                        >
-                                          <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0">
-                                              <p className="truncate text-xs font-semibold text-gray-700">
-                                                #{index + 1} {item.lectureTitle}
-                                              </p>
-
-                                              <p className="mt-0.5 text-[10px] text-gray-400">
-                                                Pertemuan{" "}
-                                                {item.chapterOrder || "—"}
-                                                {item.courseTitle
-                                                  ? ` • ${item.courseTitle}`
-                                                  : ""}
-                                              </p>
-                                            </div>
-
-                                            <span className="whitespace-nowrap text-xs font-bold text-gray-700">
-                                              {item.interactionPercent ?? 0}%
-                                            </span>
-                                          </div>
-
-                                          <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-gray-500">
-                                            <span>
-                                              {item.accessCount || 0}x akses
-                                            </span>
-
-                                            <span>
-                                              {fmtDur(item.durationSec || 0)}
-                                            </span>
-
-                                            <span>
-                                              {item.selesai
-                                                ? "✓ Selesai"
-                                                : "Belum selesai"}
-                                            </span>
-                                          </div>
+                                          <StatBox
+                                            label="Durasi eksplorasi"
+                                            value={fmtDur(
+                                              s.exploration?.durationSec || 0,
+                                            )}
+                                          />
                                         </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
 
-                                
+                                        {/* TOP 4 EXPLORATION */}
+                                        {(s.exploration?.top4?.length || 0) >
+                                          0 && (
+                                          <div className="mt-4">
+                                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                              Top-4 objek eksplorasi berdasarkan
+                                              interaksi
+                                            </p>
+
+                                            <div className="grid gap-2 md:grid-cols-2">
+                                              {s.exploration.top4.map(
+                                                (item, index) => (
+                                                  <div
+                                                    key={`${item.courseId || "course"}-${item.lectureId}-${index}`}
+                                                    className="rounded-lg border border-gray-100 bg-gray-50 p-3"
+                                                  >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                      <div className="min-w-0">
+                                                        <p className="truncate text-xs font-semibold text-gray-700">
+                                                          #{index + 1}{" "}
+                                                          {item.lectureTitle}
+                                                        </p>
+
+                                                        <p className="mt-0.5 text-[10px] text-gray-400">
+                                                          Pertemuan{" "}
+                                                          {item.chapterOrder ||
+                                                            "—"}
+                                                          {item.courseTitle
+                                                            ? ` • ${item.courseTitle}`
+                                                            : ""}
+                                                        </p>
+                                                      </div>
+
+                                                      <span className="whitespace-nowrap text-xs font-bold text-gray-700">
+                                                        {item.interactionPercent ??
+                                                          0}
+                                                        %
+                                                      </span>
+                                                    </div>
+
+                                                    <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-gray-500">
+                                                      <span>
+                                                        {item.accessCount || 0}x
+                                                        akses
+                                                      </span>
+
+                                                      <span>
+                                                        {fmtDur(
+                                                          item.durationSec || 0,
+                                                        )}
+                                                      </span>
+
+                                                      <span>
+                                                        {item.selesai
+                                                          ? "✓ Selesai"
+                                                          : "Belum selesai"}
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                ),
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     ) : (
-                                      <p className="text-xs text-gray-400">Belum ada eksplorasi di luar objek acuan.</p>
-                                    )
-                                  )}
+                                      <p className="text-xs text-gray-400">
+                                        Belum ada eksplorasi di luar objek
+                                        acuan.
+                                      </p>
+                                    ))}
 
                                   {/* TAB: REKOMENDASI (G2) */}
                                   {tab === "rekomendasi" && isG2 && (
                                     <div>
                                       {/* RECOMMENDATION ADHERENCE G2 */}
-                                {s.kelas?.toUpperCase() === "G2" && (
-                                  <div className="mt-4 rounded-lg border border-purple-100 bg-purple-50 p-3">
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                      <div>
-                                        <p className="text-xs font-semibold text-purple-800">
-                                          Recommendation Adherence
-                                        </p>
+                                      {s.kelas?.toUpperCase() === "G2" && (
+                                        <div className="mt-4 rounded-lg border border-purple-100 bg-purple-50 p-3">
+                                          <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                              <p className="text-xs font-semibold text-purple-800">
+                                                Recommendation Adherence
+                                              </p>
 
-                                        <p className="mt-1 text-[10px] text-purple-600">
-                                          Proporsi durasi efektif pada Top-4
-                                          rekomendasi dibanding seluruh
-                                          interaksi OBPEM tambahan.
-                                        </p>
-                                      </div>
-
-                                      <span className="text-lg font-bold text-purple-700">
-                                        {s.recommendationAdherence
-                                          ?.durationPercent == null
-                                          ? "—"
-                                          : `${s.recommendationAdherence.durationPercent}%`}
-                                      </span>
-                                    </div>
-
-                                    <div className="mt-2">
-                                      <PctBar
-                                        value={
-                                          s.recommendationAdherence
-                                            ?.durationPercent || 0
-                                        }
-                                        showValue={false}
-                                      />
-                                    </div>
-
-                                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-purple-600">
-                                      <span>
-                                        Rekomendasi:{" "}
-                                        {fmtDur(
-                                          s.recommendationAdherence
-                                            ?.recommendedDurationSec || 0,
-                                        )}
-                                      </span>
-
-                                      <span>
-                                        Di luar rekomendasi:{" "}
-                                        {fmtDur(
-                                          s.recommendationAdherence
-                                            ?.outsideRecommendationDurationSec ||
-                                            0,
-                                        )}
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
-                                {s.adherenceByChapter?.length > 0 && (
-                                      <div className="mt-3 space-y-1.5">
-                                        {s.adherenceByChapter
-                                          .slice()
-                                          .sort(
-                                            (a, b) =>
-                                              a.chapterOrder - b.chapterOrder,
-                                          )
-                                          .map((c) => (
-                                            <div
-                                              key={c.chapterId}
-                                              className="flex items-center gap-2"
-                                            >
-                                              <span className="w-24 shrink-0 text-[10px] text-purple-700">
-                                                Pertemuan {c.chapterOrder}
-                                              </span>
-                                              <div className="flex-1">
-                                                <PctBar
-                                                  value={c.durationPercent ?? 0}
-                                                  showValue={false}
-                                                />
-                                              </div>
-                                              <span className="w-12 shrink-0 text-right text-[10px] font-medium text-purple-700">
-                                                {c.durationPercent == null
-                                                  ? "—"
-                                                  : `${c.durationPercent}%`}
-                                              </span>
+                                              <p className="mt-1 text-[10px] text-purple-600">
+                                                Proporsi durasi efektif pada
+                                                Top-4 rekomendasi dibanding
+                                                seluruh interaksi OBPEM
+                                                tambahan.
+                                              </p>
                                             </div>
-                                          ))}
-                                      </div>
-                                    )}
-                              
+
+                                            <span className="text-lg font-bold text-purple-700">
+                                              {s.recommendationAdherence
+                                                ?.durationPercent == null
+                                                ? "—"
+                                                : `${s.recommendationAdherence.durationPercent}%`}
+                                            </span>
+                                          </div>
+
+                                          <div className="mt-2">
+                                            <PctBar
+                                              value={
+                                                s.recommendationAdherence
+                                                  ?.durationPercent || 0
+                                              }
+                                              showValue={false}
+                                            />
+                                          </div>
+
+                                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-purple-600">
+                                            <span>
+                                              Rekomendasi:{" "}
+                                              {fmtDur(
+                                                s.recommendationAdherence
+                                                  ?.recommendedDurationSec || 0,
+                                              )}
+                                            </span>
+
+                                            <span>
+                                              Di luar rekomendasi:{" "}
+                                              {fmtDur(
+                                                s.recommendationAdherence
+                                                  ?.outsideRecommendationDurationSec ||
+                                                  0,
+                                              )}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {s.adherenceByChapter?.length > 0 && (
+                                        <div className="mt-3 space-y-1.5">
+                                          {s.adherenceByChapter
+                                            .slice()
+                                            .sort(
+                                              (a, b) =>
+                                                a.chapterOrder - b.chapterOrder,
+                                            )
+                                            .map((c) => (
+                                              <div
+                                                key={c.chapterId}
+                                                className="flex items-center gap-2"
+                                              >
+                                                <span className="w-24 shrink-0 text-[10px] text-purple-700">
+                                                  Pertemuan {c.chapterOrder}
+                                                </span>
+                                                <div className="flex-1">
+                                                  <PctBar
+                                                    value={
+                                                      c.durationPercent ?? 0
+                                                    }
+                                                    showValue={false}
+                                                  />
+                                                </div>
+                                                <span className="w-12 shrink-0 text-right text-[10px] font-medium text-purple-700">
+                                                  {c.durationPercent == null
+                                                    ? "—"
+                                                    : `${c.durationPercent}%`}
+                                                </span>
+                                              </div>
+                                            ))}
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </>
@@ -1284,21 +1467,21 @@ const StudentEngagement = () => {
         </p>
 
         <p className="mt-1 text-blue-500">
-          Target G1 = 4 objek pilihan per
-          pertemuan. Target G2 = 4 objek rekomendasi per pertemuan.
+          Target G1 = 4 objek pilihan per pertemuan. Target G2 = 4 objek
+          rekomendasi per pertemuan.
         </p>
 
         <p className="mt-1 text-blue-500">
           Interaksi = rata-rata rasio durasi efektif pada objek target. Objek
-          target yang tidak diakses bernilai 0. Objek di luar target
-          dicatat sebagai eksplorasi dan tambahan perhitungan profil VARK praja.
+          target yang tidak diakses bernilai 0. Objek di luar target dicatat
+          sebagai eksplorasi dan tambahan perhitungan profil VARK praja.
         </p>
 
         <p className="mt-1 text-blue-500">
           Akses dengan durasi kumulatif kurang dari 30 detik dianggap tidak
-          valid: tidak dihitung pada interaksi, status selesainya diabaikan,
-          dan tidak dipilih sebagai objek target G1. Daftarnya ditampilkan
-          pada detail setiap praja untuk tindak lanjut pengajar.
+          valid: tidak dihitung pada interaksi, status selesainya diabaikan, dan
+          tidak dipilih sebagai objek target G1. Daftarnya ditampilkan pada
+          detail setiap praja untuk tindak lanjut pengajar.
         </p>
       </div>
     </div>

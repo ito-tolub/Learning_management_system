@@ -1746,7 +1746,7 @@ const Player = () => {
   const displayedLectures = recommendationEnabled
     ? showAllLectures
       ? lecturesLain
-      : lecturesLain.slice(0, 6)
+      : lecturesLain.slice(0, 11)
     : lecturesLain;
 
   const isSameLecture = (lecture) => {
@@ -2047,8 +2047,7 @@ const Player = () => {
                   </h3>
 
                   <p className="mt-1 text-xs text-gray-500">
-                    Pelajari materi utama berikut sebelum membuka rekomendasi
-                    objek pembelajaran.
+                    Pelajari materi utama berikut terlebih dahulu sebelum melanjutkan ke objek pembelajaran pendukung.
                   </p>
                 </div>
 
@@ -2100,72 +2099,14 @@ const Player = () => {
               </div>
             </section>
           )}
+          {/* ── Objek Pembelajaran ── */}
 
-          {/* ── Rekomendasi Objek Pembelajaran ── */}
-          {recommendationEnabled && rekomendasiAkhir.length > 0 && (
-            <div
-              className={`mb-6 rounded-2xl border-2 ${colors.border} ${colors.bg} p-4`}
-            >
-              {/* Header rekomendasi */}
-              <div className="flex items-start gap-3 mb-4">
-                {/* <div
-                  className={`w-10 h-10 ${colors.accent} rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm`}
-                >
-                  <span className="text-xl">
-                    {varkEmoji[dominantSet[0] || "V"]}
-                  </span>
-                </div> */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className={`font-bold text-sm ${colors.text}`}>
-                      Direkomendasikan untuk Kamu
-                    </h3>
-                    {/* <span
-                      className={`text-xs text-white px-2 py-0.5 rounded-full ${colors.badge} font-medium`}
-                    >
-                      {varkLabel[dominantSet[0] || "V"]}
-                    </span> */}
-                  </div>
-                  {/* <p className="text-xs text-gray-500 mt-0.5">
-                    Top-3 objek pembelajaran dengan kecocokan VARK tertinggi
-                    berdasarkan cosine similarity
-                  </p> */}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {rekomendasiAkhir.map((lecture) => (
-                  <LectureCard
-                    key={`recommended-${lecture._sourceIndex}`}
-                    lecture={lecture}
-                    onReview={handleOpenLecture}
-                    isActive={isSameLecture(lecture)}
-                    isCompleted={isCompleted(lecture.lectureId)}
-                    recommendationEnabled={recommendationEnabled}
-                    isRecommended
-                    rank={lecture.rank}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Pesan jika tidak ada dominant VARK */}
-          {recommendationEnabled && !userVarkVector && (
-            <div className="mb-6 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-center">
-              <p className="text-sm text-gray-400">
-                Selesaikan tes VARK untuk mendapatkan rekomendasi personal 🎯
-              </p>
-            </div>
-          )}
-
-          {/* ── Objek Pembelajaran Lainnya ── */}
           {lecturesLain.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-gray-700 text-sm">
                   {recommendationEnabled
-                    ? "Objek Pembelajaran Lainnya"
+                    ? "Objek Pembelajaran Pendukung"
                     : "Semua Objek Pembelajaran"}
                 </h3>
                 {recommendationEnabled && lecturesLain.length > 6 && (
@@ -2180,6 +2121,18 @@ const Player = () => {
                 )}
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {rekomendasiAkhir.map((lecture) => (
+                  <LectureCard
+                    key={`recommended-${lecture._sourceIndex}`}
+                    lecture={lecture}
+                    onReview={handleOpenLecture}
+                    isActive={isSameLecture(lecture)}
+                    isCompleted={isCompleted(lecture.lectureId)}
+                    recommendationEnabled={recommendationEnabled}
+                    // isRecommended
+                    // rank={lecture.rank}
+                  />
+                ))}
                 {displayedLectures.map((lecture) => (
                   <LectureCard
                     key={`lecture-${lecture._sourceIndex}`}

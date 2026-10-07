@@ -76,8 +76,7 @@ const getInstructionalProfile = (mentalKepribadian, mentalReference) => {
   }
 
   return {
-    contentGranularity:
-      score >= mentalReference ? "utuh" : "tersegmentasi",
+    contentGranularity: score >= mentalReference ? "utuh" : "tersegmentasi",
 
     cognitiveLevel: score >= mentalReference ? "C4-C6" : "C1-C3",
   };
@@ -260,7 +259,10 @@ export const getG2Recommendations = ({
     return [];
   }
 
-  const instructionalProfile = getInstructionalProfile(mentalKepribadian, mentalReference);
+  const instructionalProfile = getInstructionalProfile(
+    mentalKepribadian,
+    mentalReference,
+  );
 
   const candidates = getG2RecommendationCandidates(chapter, mainLectures);
 
@@ -507,7 +509,7 @@ export const calculateTargetEngagement = ({
   mentalKepribadian,
   activities = [],
   frozenByChapter = null,
-    mentalReference = null,
+  mentalReference = null,
 }) => {
   const normalizedClass = String(kelas || "")
     .trim()
@@ -569,63 +571,64 @@ export const calculateTargetEngagement = ({
       }),
     );
 
-    let additionalTargets = [];
-    let additionalQuota = 0;
+    // Daftar rekomendasi (hanya G2). Dipakai untuk laporan kepatuhan,
+    // TIDAK lagi menjadi dasar skor SES.
+    let recommendedLectures = [];
 
     if (normalizedClass === "G2") {
       const beku = frozenByChapter?.get(chapter.chapterId);
 
       if (beku && beku.length > 0) {
-        // Daftar BEKU: urutan dipertahankan sesuai peringkat saat dibekukan
         const byId = new Map(
           (chapter.chapterContent || []).map((l) => [l.lectureId, l]),
         );
-
-        additionalTargets = beku.map((id) => byId.get(id)).filter(Boolean);
+        recommendedLectures = beku.map((id) => byId.get(id)).filter(Boolean);
       } else {
-        // Belum dibekukan (mis. pertemuan belum berjalan)
-        additionalTargets = getG2Recommendations({
+        recommendedLectures = getG2Recommendations({
           chapter,
           mainLectures,
           userVarkVector,
           mentalKepribadian,
-          mentalReference 
+          mentalReference,
         });
       }
-
-      additionalQuota = additionalTargets.length;
-    } else {
-      additionalTargets = chooseG1AdditionalTargets({
-        chapter,
-        mainLectures,
-        activityMap,
-      });
-
-      additionalQuota = Math.min(
-        RECOMMENDATION_LIMIT,
-        g1NonMainLectures.length,
-      );
     }
 
-    const additionalDetails = additionalTargets.map((lecture) => {
-      const detail = makeTargetDetail({
+    const chapterRecommendationDetails = recommendedLectures.map((lecture) =>
+      makeTargetDetail({
         lecture,
         chapter,
-
-        role: normalizedClass === "G2" ? "recommended" : "free-choice",
-
+        role: "recommended",
         completedSet,
         activityMap,
+        recommendation: lecture,
+      }),
+    );
 
-        recommendation: normalizedClass === "G2" ? lecture : null,
-      });
+    recommendationDetails.push(...chapterRecommendationDetails);
 
-      if (normalizedClass === "G2") {
-        recommendationDetails.push(detail);
-      }
-
-      return detail;
+    // Objek acuan SES: aturan yang SAMA untuk G1 dan G2, yaitu
+    // 4 objek non-utama pertama yang dibuka praja; penyebut tetap 4.
+    const additionalTargets = chooseG1AdditionalTargets({
+      chapter,
+      mainLectures,
+      activityMap,
     });
+
+    const additionalQuota = Math.min(
+      RECOMMENDATION_LIMIT,
+      g1NonMainLectures.length,
+    );
+
+    const additionalDetails = additionalTargets.map((lecture) =>
+      makeTargetDetail({
+        lecture,
+        chapter,
+        role: "free-choice",
+        completedSet,
+        activityMap,
+      }),
+    );
 
     for (const detail of [...mainDetails, ...additionalDetails]) {
       targetDetails.push(detail);
@@ -655,31 +658,18 @@ export const calculateTargetEngagement = ({
 
     chapterDetails.push({
       chapterId: chapter.chapterId,
-
       chapterOrder: Number(chapter.chapterOrder || 0),
-
       mainPossible: mainDetails.length,
-
       mainEarned: mainCompleted,
-
-      additionalType:
-        normalizedClass === "G2" ? "hybrid-top-4" : "free-choice-first-4",
-
+      additionalType: "free-choice-first-4",
       additionalQuota,
-
       additionalUsed: additionalDetails.length,
-
       additionalPossible: additionalQuota,
-
       additionalEarned: additionalCompleted,
-
-      recommendedDurationSec:
-        normalizedClass === "G2"
-          ? additionalDetails.reduce(
-              (sum, detail) => sum + Number(detail.actualDurSec || 0),
-              0,
-            )
-          : 0,
+      recommendedDurationSec: chapterRecommendationDetails.reduce(
+        (sum, detail) => sum + Number(detail.actualDurSec || 0),
+        0,
+      ),
 
       targetLectureIds: [...mainDetails, ...additionalDetails].map(
         (detail) => detail.lectureId,
@@ -925,7 +915,8 @@ export const calculateTargetEngagement = ({
       details: explorationDetails,
     },
 
-    recommendationAdherence, adherenceByChapter,
+    recommendationAdherence,
+    adherenceByChapter,
   };
 };
 
@@ -1004,7 +995,9 @@ export const splitShortInteractions = ({
   const lectureLookup = new Map();
 
   for (const chapter of course?.courseContent || []) {
-    const mainIds = new Set(MAIN_LECTURE_IDS_BY_CHAPTER[chapter.chapterId] || []);
+    const mainIds = new Set(
+      MAIN_LECTURE_IDS_BY_CHAPTER[chapter.chapterId] || [],
+    );
 
     for (const lecture of chapter.chapterContent || []) {
       if (!lecture?.lectureId) continue;
@@ -1047,7 +1040,10 @@ export const splitShortInteractions = ({
       chapterOrder: Number(info?.chapter?.chapterOrder || 0),
       isMain: Boolean(info?.isMain),
       durationSec,
-      expectedDurSec: Math.max(Number(info?.lecture?.lectureDuration || 0) * 60, 0),
+      expectedDurSec: Math.max(
+        Number(info?.lecture?.lectureDuration || 0) * 60,
+        0,
+      ),
       accessCount: Math.max(Number(activity?.accessCount || 0), 0),
       markedCompleted: completedSet.has(lectureId),
       firstAccessAt: activity?.createdAt || null,

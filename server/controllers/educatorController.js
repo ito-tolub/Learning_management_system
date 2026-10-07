@@ -8,11 +8,20 @@ import jwt from "jsonwebtoken";
 import Pegawai from "../models/pegawai.js";
 import Keprajaan from "../models/Keprajaan.js";
 import bcrypt from "bcryptjs";
-import { calculateTargetEngagement, MAIN_LECTURE_IDS_BY_CHAPTER, MIN_VALID_ACCESS_SEC, splitShortInteractions, } from "../utils/calculateFeedbackScore.js";
+import {
+  calculateTargetEngagement,
+  MAIN_LECTURE_IDS_BY_CHAPTER,
+  MIN_VALID_ACCESS_SEC,
+  splitShortInteractions,
+} from "../utils/calculateFeedbackScore.js";
 import Quiz from "../models/Quiz.js";
 import QuizAttempt from "../models/QuizAttempt.js";
 import { calculateAdaptiveVark } from "../utils/calculateAdaptiveVark.js";
-import { Attendance, EXPERIMENT_MEETINGS, PRESENT_STATUSES, } from "../models/Attendance.js";
+import {
+  Attendance,
+  EXPERIMENT_MEETINGS,
+  PRESENT_STATUSES,
+} from "../models/Attendance.js";
 import { getUserVarkVectorBulk } from "../utils/getUserVarkVector.js";
 import { RecommendationSnapshot } from "../models/RecommendationSnapshot.js";
 import { getFrozenBulk } from "../utils/freezeRecommendation.js";
@@ -1040,8 +1049,9 @@ export const getStudentEngagementScore = async (req, res) => {
             totalAccessedLectures - shortInteractionDetails.length,
             0,
           ),
-          completedCount: shortInteractionDetails.filter((d) => d.markedCompleted)
-            .length,
+          completedCount: shortInteractionDetails.filter(
+            (d) => d.markedCompleted,
+          ).length,
           details: shortInteractionDetails,
         },
       });
@@ -1084,6 +1094,7 @@ export const getVarkTagDurationSummary = async (req, res) => {
             tag: lecture.tags || "UNTAGGED",
             isMain: mainIds.has(lecture.lectureId),
             varkvektor: lecture.varkvektor || null,
+            maxSeconds: (Number(lecture.lectureDuration) || 0) * 60,
             lectureTitle: lecture.lectureTitle,
             courseTitle: course.courseTitle,
             chapterTitle: chapter.chapterTitle,
@@ -1157,13 +1168,18 @@ export const getVarkTagDurationSummary = async (req, res) => {
       if (info?.isMain) {
         continue;
       }
+      const rawSeconds = Number(activity.totalDuration) || 0;
+      const cappedSeconds =
+        info?.maxSeconds > 0
+          ? Math.min(rawSeconds, info.maxSeconds)
+          : rawSeconds;
 
-      overall[tag].totalSeconds += activity.totalDuration || 0;
+      overall[tag].totalSeconds += cappedSeconds;
       overall[tag].lecturesAccessed += 1;
       overall[tag].accessCount += activity.accessCount || 0;
 
       if (kelas === "G1" || kelas === "G2") {
-        byKelas[kelas][tag].totalSeconds += activity.totalDuration || 0;
+        byKelas[kelas][tag].totalSeconds += cappedSeconds;
         byKelas[kelas][tag].lecturesAccessed += 1;
         byKelas[kelas][tag].accessCount += activity.accessCount || 0;
       }
@@ -1173,7 +1189,7 @@ export const getVarkTagDurationSummary = async (req, res) => {
           perStudentBuckets.set(activity.userId, makeEmptyBucket());
         }
         const bucket = perStudentBuckets.get(activity.userId);
-        bucket[tag].totalSeconds += activity.totalDuration || 0;
+        bucket[tag].totalSeconds += cappedSeconds;
         bucket[tag].lecturesAccessed += 1;
         bucket[tag].accessCount += activity.accessCount || 0;
       }
