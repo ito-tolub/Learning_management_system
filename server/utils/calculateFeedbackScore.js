@@ -445,8 +445,18 @@ const chooseG1AdditionalTargets = ({ chapter, mainLectures, activityMap }) => {
         _firstAccessAt: activity?.createdAt || null,
       };
     })
-    .filter((lecture) => hasActualAccess(lecture._activity))
+        .filter((lecture) => hasActualAccess(lecture._activity))
+    .map((lecture) => ({
+      ...lecture,
+      _ratio: interactionMetrics(lecture, lecture._activity).ratio ?? 0,
+    }))
     .sort((a, b) => {
+      // 1) Rasio interaksi tertinggi (durasi efektif / durasi acuan)
+      if (b._ratio !== a._ratio) {
+        return b._ratio - a._ratio;
+      }
+
+      // 2) Jika rasionya sama, dahulukan yang lebih dulu dibuka
       const timeA = a._firstAccessAt
         ? new Date(a._firstAccessAt).getTime()
         : Number.POSITIVE_INFINITY;

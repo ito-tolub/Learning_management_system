@@ -25,6 +25,8 @@ import { ToastContainer } from "react-toastify";
 import Presensi from "./pages/educator/Presensi";
 import KelolaKuis from "./pages/educator/KelolaKuis";
 import ObjekPembelajaran from "./pages/educator/ObjekPembelajaran";
+import InteractionMonitor from "./pages/educator/InteractionMonitor";
+import RecommendationMetrics from "./pages/educator/RecommendationMetrics";
 
 const RequireOnboarding = ({ children }) => {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -194,6 +196,8 @@ const App = () => {
           <Route path="student-engagement" element={<StudentEngagement />} />
           <Route path="vark-summary" element={<VarkSummary />} />
           <Route path="assignments" element={<AssignmentManager />} />
+          <Route path="interaksi" element={<InteractionMonitor />} />
+          <Route path="ketepatan-rekomendasi" element={<RecommendationMetrics />} />
 
           <Route path="student-enrolled" element={<StudentsEnrolled />} />
           <Route path="presensi" element={<Presensi />} />

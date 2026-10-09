@@ -13,6 +13,8 @@ import {
   deleteLearningObject,
 } from '../controllers/learningObjectController.js';
 import { clerkMiddleware, requireAuth } from '@clerk/express';
+import { getInteractionStats } from '../controllers/interactionStatsController.js';
+import { getRecommendationMetrics } from '../controllers/recommendationMetricsController.js'; 
 
 const educatorRouter = express.Router()
 
@@ -31,7 +33,8 @@ educatorRouter.get('/enrolled-students', protectDosen, getEnrolledStudentsData)
 educatorRouter.get('/vark-summary', protectDosen, getVarkTagDurationSummary)
  
 // educatorRouter.post('/track-activity', requireAuth(), trackLectureActivity) 
-
+educatorRouter.get('/recommendation-metrics', protectDosen, getRecommendationMetrics)
+educatorRouter.get('/interaction-stats', protectDosen, getInteractionStats)
 educatorRouter.get('/ses', protectDosen, getStudentEngagementScore)
 educatorRouter.get(
   "/quiz-results/:courseId",

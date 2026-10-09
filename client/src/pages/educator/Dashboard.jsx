@@ -50,6 +50,8 @@ const EducatorLayout = () => {
     { label: "Ringkasan VARK", path: "/educator/vark-summary" },
     { label: "Presensi", path: "/educator/presensi" },
     { label: "Kelola Objek Pembelajaran", path: "/educator/objek-pembelajaran" },
+    { label: "Interaksi G1 vs G2", path: "/educator/interaksi" },
+    { label: "Ketepatan Rekomendasi", path: "/educator/ketepatan-rekomendasi" }
   ];
 
   const handleLogout = () => {
