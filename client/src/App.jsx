@@ -14,7 +14,7 @@ import QuizPage from "./pages/student/QuizPage";
 import Dashboard from "./pages/educator/Dashboard";
 import MyCourses from "./pages/educator/MyCourses";
 import StudentsEnrolled from "./pages/educator/StudentsEnrolled";
-import StudentEngagement from "./pages/educator/StudentEngagement";
+// import StudentEngagement from "./pages/educator/StudentEngagement";
 import VarkSummary from "./pages/educator/VarkSummary";
 import AssignmentManager from "./pages/educator/AssignmentManager";
 
@@ -193,10 +193,10 @@ const App = () => {
           <Route path="my-course" element={<MyCourses />} />
           <Route path="kelola-kuis" element={<KelolaKuis />} />
 
-          <Route path="student-engagement" element={<StudentEngagement />} />
+          <Route path="student-engagement" element={<InteractionMonitor />} />
           <Route path="vark-summary" element={<VarkSummary />} />
           <Route path="assignments" element={<AssignmentManager />} />
-          <Route path="interaksi" element={<InteractionMonitor />} />
+          {/* <Route path="interaksi" element={<InteractionMonitor />} /> */}
           <Route path="ketepatan-rekomendasi" element={<RecommendationMetrics />} />
 
           <Route path="student-enrolled" element={<StudentsEnrolled />} />

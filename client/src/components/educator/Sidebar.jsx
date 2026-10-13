@@ -11,9 +11,9 @@ const Sidebar = ({ isOpen = true, onClose }) => {
     { name: 'Add Course', path: '/educator/add-course', icon: assets.add_icon },
     { name: 'My Course', path: '/educator/my-course', icon: assets.my_course_icon },
     { name: 'Student Enrolled', path: '/educator/student-enrolled', icon: assets.person_tick_icon },
+    // { name: 'Student Engagement', path: '/educator/student-engagement', icon: assets.person_tick_icon },
     { name: 'Student Engagement', path: '/educator/student-engagement', icon: assets.person_tick_icon },
     { name: 'Ringkasan VARK', path: '/educator/vark-summary', icon: assets.person_tick_icon },
-    { name: 'Interaksi G1 vs G2', path: '/educator/interaksi', icon: assets.person_tick_icon },
     { name: 'Ketepatan Rekomendasi', path: '/educator/ketepatan-rekomendasi', icon: assets.person_tick_icon },
   ]
 
