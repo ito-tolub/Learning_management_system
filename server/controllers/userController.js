@@ -35,69 +35,6 @@ export const updateCourseProgress = async (req, res) => {
       progress?.lectureCompleted?.includes(lectureId) || false;
 
     /*
-     * Jika BELUM selesai dan user ingin menandai selesai,
-     * cek dulu apakah waktu bacanya sudah memenuhi.
-     */
-    if (!alreadyCompleted) {
-      const course = await Course.findById(courseId).lean();
-
-      if (!course) {
-        return res.json({
-          success: false,
-          message: "Course tidak ditemukan",
-        });
-      }
-
-      // Cari lecture berdasarkan lectureId
-      let lecture = null;
-
-      for (const chapter of course.courseContent || []) {
-        const foundLecture = (chapter.chapterContent || []).find(
-          (item) => item.lectureId === lectureId,
-        );
-
-        if (foundLecture) {
-          lecture = foundLecture;
-          break;
-        }
-      }
-
-      if (!lecture) {
-        return res.json({
-          success: false,
-          message: "Objek pembelajaran tidak ditemukan",
-        });
-      }
-
-      // lectureDuration tersimpan dalam MENIT
-      const fullDurationSeconds = Number(lecture.lectureDuration || 0) * 60;
-
-      const requiredSeconds = Math.ceil(fullDurationSeconds * 0.5);
-
-      // Ambil aktivitas baca praja
-      const activity = await LectureActivity.findOne({
-        userId,
-        courseId,
-        lectureId,
-      }).lean();
-
-      const actualSeconds = Number(activity?.totalDuration || 0);
-
-      // Tolak jika waktu baca belum memenuhi
-      if (actualSeconds < requiredSeconds) {
-        const remainingSeconds = requiredSeconds - actualSeconds;
-
-        return res.json({
-          success: false,
-          message: `Waktu membaca belum cukup. Sisa ${remainingSeconds} detik.`,
-          remainingSeconds,
-          actualSeconds,
-          requiredSeconds,
-        });
-      }
-    }
-
-    /*
      * TOGGLE PROGRESS
      */
 

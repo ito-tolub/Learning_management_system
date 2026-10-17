@@ -713,6 +713,10 @@ const UntrackedFrame = ({ onMount, children }) => {
 
 const HtmlPlayer = ({ url, title, onActivity }) => {
   const iframeRef = React.useRef(null);
+  const resizeObserverRef = React.useRef(null);
+  const heightRef = React.useRef(600);
+  const growCountRef = React.useRef(0);
+  const [frameHeight, setFrameHeight] = React.useState(600);
   const [htmlContent, setHtmlContent] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
@@ -732,6 +736,14 @@ const HtmlPlayer = ({ url, title, onActivity }) => {
       });
   }, [url]);
 
+  React.useEffect(() => {
+    heightRef.current = 600;
+    growCountRef.current = 0;
+    setFrameHeight(600);
+
+    return () => resizeObserverRef.current?.disconnect();
+  }, [url]);
+
   if (loading)
     return (
       <div className="w-full h-96 bg-gray-100 rounded-xl flex items-center justify-center">
@@ -745,28 +757,62 @@ const HtmlPlayer = ({ url, title, onActivity }) => {
       </div>
     );
 
+  // Menyesuaikan tinggi iframe dengan isi halaman agar tidak terpotong.
+  // Tinggi hanya bertambah (maks. 6000 px, maks. 30 kali) supaya isi HTML yang
+  // memakai satuan vh tidak membuat iframe terus memanjang.
+  const fitFrameHeight = () => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+
+    const contentHeight = Math.max(
+      doc.documentElement?.scrollHeight || 0,
+      doc.body?.scrollHeight || 0,
+    );
+    const next = Math.min(Math.max(contentHeight, 600), 6000);
+
+    if (next <= heightRef.current + 4 || growCountRef.current >= 30) return;
+
+    heightRef.current = next;
+    growCountRef.current += 1;
+    setFrameHeight(next);
+  };
+
   return (
     <div className="w-full">
       <iframe
         ref={iframeRef}
         srcDoc={htmlContent}
         className="w-full rounded-xl border border-gray-200"
-        style={{ height: "600px" }}
+        style={{ height: `${frameHeight}px` }}
         title={title}
         sandbox="allow-scripts allow-same-origin allow-forms"
         onLoad={() => {
+          const doc = iframeRef.current?.contentDocument;
+
           /*
            * Klik, gulir, ketikan, dan gerakan kursor di dalam iframe tidak sampai ke
            * halaman LMS, jadi pendengarnya dipasang langsung di dokumen
            * iframe. Bisa dilakukan karena srcDoc se-origin dengan LMS.
            */
           try {
-            attachActivityListeners(
-              iframeRef.current?.contentDocument,
-              onActivity,
-            );
+            attachActivityListeners(doc, onActivity);
           } catch (error) {
             console.error("Gagal memantau aktivitas objek HTML:", error);
+          }
+
+          // Sesuaikan tinggi sekarang, lalu ikuti perubahan isi (gambar yang
+          // selesai dimuat, bagian yang dibuka, dan sebagainya).
+          try {
+            fitFrameHeight();
+            resizeObserverRef.current?.disconnect();
+
+            if (doc?.documentElement && typeof ResizeObserver !== "undefined") {
+              resizeObserverRef.current = new ResizeObserver(fitFrameHeight);
+              resizeObserverRef.current.observe(doc.documentElement);
+              if (doc.body) resizeObserverRef.current.observe(doc.body);
+            }
+          } catch (error) {
+            console.error("Gagal menyesuaikan tinggi objek HTML:", error);
           }
         }}
       />
@@ -781,8 +827,7 @@ const getInstructionalProfile = (mentalKepribadian, mentalReference) => {
   if (!Number.isFinite(score) || !Number.isFinite(reference)) return null;
 
   return {
-    contentGranularity:
-      score >= reference ? "utuh" : "tersegmentasi",
+    contentGranularity: score >= reference ? "utuh" : "tersegmentasi",
 
     cognitiveLevel: score >= reference ? "C4-C6" : "C1-C3",
   };
@@ -801,6 +846,106 @@ const getInstructionalCompatibility = (lecture, profile) => {
     return lecture.contentGranularity === profile.contentGranularity ? 1 : 0;
   }
   return 0;
+};
+// Hash string -> angka (untuk benih acak).
+const hashString = (text) => {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+
+// Pengacakan deterministik: benih sama -> urutan sama.
+const seededShuffle = (items, seedText) => {
+  let a = hashString(seedText);
+  const random = () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+};
+
+const VARK_ROW_ORDER = ["V", "A", "R", "K"];
+const VARK_FALLBACK = ["V", "A", "R"];
+
+// Tiap baris (4 kartu) berisi satu OP dari tiap modalitas V, A, R, K.
+// Baris yang memuat K dipilih acak. Bila slot K tidak terisi K atau suatu
+// modalitas habis, slot itu diisi bergilir dari V, lalu A, lalu R.
+const arrangeByModalityRows = (lectures, seedText) => {
+  const pools = { V: [], A: [], R: [], K: [] };
+  const others = [];
+
+  lectures.forEach((lecture) => {
+    const modality = normalizeVark(lecture.tags);
+    if (pools[modality]) pools[modality].push(lecture);
+    else others.push(lecture);
+  });
+
+  // Urutan OP di dalam tiap modalitas diacak.
+  VARK_ROW_ORDER.forEach((modality) => {
+    pools[modality] = seededShuffle(pools[modality], `${seedText}|${modality}`);
+  });
+
+  const remaining = () =>
+    VARK_ROW_ORDER.reduce((sum, modality) => sum + pools[modality].length, 0);
+
+  // Baris mana yang memuat K diacak (sebanyak jumlah OP K).
+  const rowCount = Math.ceil(remaining() / 4);
+  const kRows = new Set(
+    seededShuffle(
+      Array.from({ length: rowCount }, (_, index) => index),
+      `${seedText}|krows`,
+    ).slice(0, pools.K.length),
+  );
+
+  // Titik awal siklus fallback juga diacak.
+  let fallbackIndex = hashString(`${seedText}|fb`) % VARK_FALLBACK.length;
+
+  const takeFallback = () => {
+    for (let tries = 0; tries < VARK_FALLBACK.length; tries += 1) {
+      const fallback = VARK_FALLBACK[fallbackIndex % VARK_FALLBACK.length];
+      fallbackIndex += 1;
+
+      if (pools[fallback].length > 0) return pools[fallback].shift();
+    }
+
+    // V, A, R habis: pakai K yang tersisa agar tidak ada OP yang hilang.
+    return pools.K.length > 0 ? pools.K.shift() : null;
+  };
+
+  const result = [];
+  let rowNumber = 0;
+
+  while (remaining() > 0) {
+    const row = [];
+
+    VARK_ROW_ORDER.forEach((modality) => {
+      const canUse = modality !== "K" || kRows.has(rowNumber);
+      const item =
+        pools[modality].length > 0 && canUse
+          ? pools[modality].shift()
+          : takeFallback();
+
+      if (item) row.push(item);
+    });
+
+    // Posisi kartu di dalam baris juga diacak.
+    result.push(...seededShuffle(row, `${seedText}|row${rowNumber}`));
+    rowNumber += 1;
+  }
+
+  // OP tanpa modalitas yang dikenal diletakkan paling akhir.
+  return [...result, ...others];
 };
 
 const Player = () => {
@@ -837,7 +982,6 @@ const Player = () => {
   }, [courseData]);
   const [playerData, setPlayerData] = useState(null);
   const [progressData, setProgressData] = useState(null);
-  const [showAllLectures, setShowAllLectures] = useState(false);
 
   // Pencatatan durasi aktif pada objek pembelajaran
   const activeStartRef = useRef(null);
@@ -1576,14 +1720,6 @@ const Player = () => {
               {officeViewer}
             </UntrackedFrame>
           )}
-          {/* <a
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-block text-blue-500 hover:underline text-sm"
-          >
-            Download file ↗
-          </a> */}
         </div>
       );
     }
@@ -1862,31 +1998,28 @@ const Player = () => {
     (lecture) => scoredLectureByIndex.get(lecture._sourceIndex) || lecture,
   );
 
-  // G1: seluruh objek dalam urutan asli, tanpa scoring.
-  // G2: objek rekomendasi dikeluarkan dari daftar objek lainnya.
-  const lecturesLain = orderedLecturesWithScore.filter((lecture) => {
+  const lecturesLainUrut = orderedLecturesWithScore.filter((lecture) => {
     const isMainLecture = mainLectureIndexes.has(lecture._sourceIndex);
-
     const isRecommendedLecture = recommendedIndexes.has(lecture._sourceIndex);
 
     // Materi utama selalu dikeluarkan dari daftar lainnya.
     if (isMainLecture) return false;
-
     // Untuk G2, rekomendasi juga dikeluarkan dari daftar lainnya.
     if (recommendationEnabled && isRecommendedLecture) return false;
-
     return true;
   });
+
+  // Susunan baris 4 modalitas; urutan stabil per praja per pertemuan.
+  const lecturesLain = arrangeByModalityRows(
+    lecturesLainUrut,
+    `${userData?._id || userData?.npp || "anon"}|${currentChapter?.chapterId || ""}`,
+  );
 
   const colors =
     varkColor[normalizeVark(rekomendasiAkhir[0]?.tags)] || varkColor["V"];
   const isCompleted = (id) => progressData?.lectureCompleted?.includes(id);
 
-  const displayedLectures = recommendationEnabled
-    ? showAllLectures
-      ? lecturesLain
-      : lecturesLain.slice(0, 11)
-    : lecturesLain;
+  const displayedLectures = lecturesLain;
 
   const isSameLecture = (lecture) => {
     if (!playerData || !lecture) return false;
@@ -1956,7 +2089,6 @@ const Player = () => {
                   onClick={() => {
                     setSelectedChapter(index);
                     setPlayerData(null);
-                    setShowAllLectures(false);
 
                     if (window.matchMedia("(max-width: 767px)").matches) {
                       setIsSidebarOpen(false);
@@ -2127,7 +2259,8 @@ const Player = () => {
                   </h3>
 
                   <p className="mt-1 text-xs text-gray-500">
-                    Pelajari materi utama berikut terlebih dahulu sebelum melanjutkan ke objek pembelajaran pendukung.
+                    Pelajari materi utama berikut terlebih dahulu sebelum
+                    melanjutkan ke objek pembelajaran pendukung.
                   </p>
                 </div>
 
@@ -2189,16 +2322,6 @@ const Player = () => {
                     ? "Objek Pembelajaran Pendukung"
                     : "Semua Objek Pembelajaran"}
                 </h3>
-                {recommendationEnabled && lecturesLain.length > 6 && (
-                  <button
-                    onClick={() => setShowAllLectures(!showAllLectures)}
-                    className="text-xs font-medium text-blue-600 hover:underline"
-                  >
-                    {showAllLectures
-                      ? "Tampilkan lebih sedikit"
-                      : `Lihat semua (${lecturesLain.length})`}
-                  </button>
-                )}
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {rekomendasiAkhir.map((lecture) => (

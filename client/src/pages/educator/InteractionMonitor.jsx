@@ -823,34 +823,18 @@ const InteractionMonitor = () => {
   );
 
   return (
-    <div className="min-h-screen w-full space-y-6 p-4 md:p-8">
-      <div>
-        <h1 className="text-xl font-bold text-gray-800">
-          Pemantauan Interaksi OP Pendukung
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Perbandingan G1 dan G2. Hanya OP pendukung, akses ≥{" "}
-          {data.rules.minValidSec} detik, durasi tiap OP dibatasi{" "}
-          {data.rules.durationCap}. Angka: rerata (SD) · median.
-        </p>
-      </div>
-
-      {/* Pilih cakupan */}
-      <div className="flex flex-wrap gap-2">
-        {[{ meeting: "ALL" }, ...meetingsWithData].map((m) => (
-          <button
-            key={m.meeting}
-            type="button"
-            onClick={() => setScope(m.meeting)}
-            className={`rounded-full border px-3 py-1.5 text-sm transition ${
-              scope === m.meeting
-                ? "border-gray-800 bg-gray-800 text-white"
-                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            {m.meeting === "ALL" ? "Keseluruhan" : `Pertemuan ${m.meeting}`}
-          </button>
-        ))}
+    <div className="flex min-h-screen w-full flex-col p-4 md:p-8 lg:flex-row lg:items-start lg:gap-6">
+      <div className="min-w-0 flex-1 space-y-6">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">
+            Pemantauan Interaksi OP Pendukung
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Perbandingan G1 dan G2. Hanya OP pendukung, akses ≥{" "}
+            {data.rules.minValidSec} detik, durasi tiap OP dibatasi{" "}
+            {data.rules.durationCap}. Angka: rerata (SD) · median.
+          </p>
+        {/* </div> */}
       </div>
 
       {/* Kartu perbandingan */}
@@ -1016,7 +1000,7 @@ const InteractionMonitor = () => {
                       <td className="px-4 py-2">
                         <p className="font-medium text-gray-800">
                           {s.nama}
-                          {shortCompleted > 0 && (
+                          {/* {shortCompleted > 0 && (
                             <span
                               className="ml-2 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700"
                               title={`${shortCompleted} objek dibuka < ${
@@ -1025,7 +1009,7 @@ const InteractionMonitor = () => {
                             >
                               {shortCompleted} perlu tindak lanjut
                             </span>
-                          )}
+                          )} */}
                         </p>
                         <p className="text-xs text-gray-400">
                           {s.npp}
@@ -1092,8 +1076,35 @@ const InteractionMonitor = () => {
               )}
             </tbody>
           </table>
-        </div>
+                </div>
       </div>
+      </div>
+
+      {/* Pilih cakupan: menempel di kanan saat halaman digulir (layar lebar),
+          berupa baris tombol di atas pada layar kecil. */}
+      <aside className="order-first mb-4 lg:order-last lg:mb-0 lg:sticky lg:top-6 lg:w-44 lg:shrink-0">
+        <div className="rounded-xl border border-gray-100 bg-white p-2 shadow-sm lg:p-3">
+          <p className="mb-2 hidden px-1 text-xs font-semibold uppercase tracking-wide text-gray-400 lg:block">
+            Cakupan
+          </p>
+          <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
+            {[{ meeting: "ALL" }, ...meetingsWithData].map((m) => (
+              <button
+                key={m.meeting}
+                type="button"
+                onClick={() => setScope(m.meeting)}
+                className={`whitespace-nowrap rounded-lg border px-3 py-1.5 text-left text-sm transition ${
+                  scope === m.meeting
+                    ? "border-gray-800 bg-gray-800 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {m.meeting === "ALL" ? "Keseluruhan" : `Pertemuan ${m.meeting}`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 };
