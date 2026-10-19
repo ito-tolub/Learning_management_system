@@ -10,6 +10,7 @@ import { getUserVarkVector } from "../utils/getUserVarkVector.js";
 import { Attendance } from "../models/Attendance.js";
 import { ensureFrozenRecommendation } from "../utils/freezeRecommendation.js";
 import { getMentalReference } from "../utils/mentalReference.js";
+import { LectureRating } from "../models/LectureRating.js";
 
 export const getMyMentalReference = async (req, res) => {
   try {
@@ -552,6 +553,151 @@ export const getMyFrozenRecommendation = async (req, res) => {
     return res.json({ success: true, recommendedLectureIds: ids || [] });
   } catch (error) {
     console.error("getMyFrozenRecommendation error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+export const rateLecture = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { courseId, chapterId, lectureId, rating, modality, section, position } =
+      req.body || {};
+
+    const value = Number(rating);
+
+    if (!courseId || !lectureId) {
+      return res.json({ success: false, message: "Data tidak lengkap" });
+    }
+
+    if (!Number.isInteger(value) || value < 1 || value > 5) {
+      return res.json({ success: false, message: "Rating harus 1 sampai 5" });
+    }
+
+    const now = new Date();
+
+    await LectureRating.updateOne(
+      { userId, courseId: String(courseId), lectureId: String(lectureId) },
+      {
+        $set: {
+          chapterId: String(chapterId || ""),
+          rating: value,
+          ratedAt: now,
+          modality: String(modality || "").slice(0, 1),
+          section: ["utama", "rekomendasi", "lainnya"].includes(section)
+            ? section
+            : "",
+          position: Number(position) || 0,
+        },
+        $push: { history: { rating: value, at: now } },
+      },
+      { upsert: true },
+    );
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("rateLecture error:", error);
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// OP dengan total durasi akses di bawah ini tidak dianggap dibaca,
+// jadi tidak dimintai rating.
+const MIN_RATING_SECONDS = 30;
+
+export const getPendingRatings = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { courseId } = req.query;
+
+    const filter = { userId };
+    if (courseId) filter.courseId = String(courseId);
+
+    // 1. OP yang sudah ditandai selesai
+    const progresses = await CourseProgress.find(filter).lean();
+    const completed = [];
+
+    progresses.forEach((progress) => {
+      (progress.lectureCompleted || []).forEach((lectureId) => {
+        completed.push({ courseId: String(progress.courseId), lectureId });
+      });
+    });
+
+    if (completed.length === 0) {
+      return res.json({ success: true, pending: [] });
+    }
+
+    const lectureIds = [...new Set(completed.map((item) => item.lectureId))];
+    const keyOf = (item) => `${item.courseId}|${item.lectureId}`;
+
+    // 2. Hanya yang durasi aksesnya >= 30 detik
+    const activities = await LectureActivity.find(
+      { userId, lectureId: { $in: lectureIds }, totalDuration: { $gte: MIN_RATING_SECONDS } },
+      "courseId lectureId totalDuration",
+    ).lean();
+
+    const durationByKey = new Map(
+      activities.map((a) => [keyOf({ courseId: String(a.courseId), lectureId: a.lectureId }), a.totalDuration]),
+    );
+
+    // 3. Yang belum pernah dirating
+    const ratings = await LectureRating.find(
+      { userId, lectureId: { $in: lectureIds } },
+      "courseId lectureId",
+    ).lean();
+
+    const ratedKeys = new Set(
+      ratings.map((r) => keyOf({ courseId: String(r.courseId), lectureId: r.lectureId })),
+    );
+
+    const candidates = completed.filter(
+      (item) => durationByKey.has(keyOf(item)) && !ratedKeys.has(keyOf(item)),
+    );
+
+    if (candidates.length === 0) {
+      return res.json({ success: true, pending: [] });
+    }
+
+    // 4. Judul dan urutan OP dari data matkul
+    const courseIds = [...new Set(candidates.map((item) => item.courseId))];
+    const courses = await Course.find({ _id: { $in: courseIds } }).lean();
+
+    const lectureInfo = new Map();
+    courses.forEach((course) => {
+      (course.courseContent || []).forEach((chapter, chapterIndex) => {
+        (chapter.chapterContent || []).forEach((lecture, lectureIndex) => {
+          const key = `${course._id}|${lecture.lectureId}`;
+          if (lectureInfo.has(key)) return; // lectureId ganda: ambil yang pertama
+          lectureInfo.set(key, {
+            title: lecture.lectureTitle || "",
+            chapterId: chapter.chapterId || "",
+            chapterTitle: chapter.chapterTitle || "",
+            order: chapterIndex * 1000 + lectureIndex, lecture,
+          });
+        });
+      });
+    });
+
+    const pending = candidates
+      .map((item) => {
+        const info = lectureInfo.get(keyOf(item));
+        if (!info) return null;
+        return {
+          courseId: item.courseId,
+          lectureId: item.lectureId,
+          chapterId: info.chapterId,
+          chapterTitle: info.chapterTitle,
+          title: info.title,
+          order: info.order,
+          lecture: info.lecture,
+          totalDuration: durationByKey.get(keyOf(item)),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.order - b.order);
+
+    return res.json({ success: true, pending });
+  } catch (error) {
+    console.error("getPendingRatings error:", error);
     return res.json({ success: false, message: error.message });
   }
 };

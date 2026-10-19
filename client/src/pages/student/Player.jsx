@@ -16,6 +16,7 @@ import {
   attachActivityListeners,
   useIdleDetector,
 } from "../../hooks/useIdleDetector";
+import RatingModal from "../../components/student/RatingModal";
 
 const HYBRID_WEIGHT = {
   vark: 0.7,
@@ -470,7 +471,7 @@ const HtmlCardPreview = ({ url, title, type }) => {
   );
 };
 
-const LecturePreview = ({ lecture, showVarkBadge = true }) => {
+export const LecturePreview = ({ lecture, showVarkBadge = true }) => {
   const url = String(lecture?.lectureUrl || "");
   const type = getLectureType(lecture);
   const youtubeId = getYouTubeId(url);
@@ -982,6 +983,7 @@ const Player = () => {
   }, [courseData]);
   const [playerData, setPlayerData] = useState(null);
   const [progressData, setProgressData] = useState(null);
+  const [ratingTarget, setRatingTarget] = useState(null); // { lectureId, title }
 
   // Pencatatan durasi aktif pada objek pembelajaran
   const activeStartRef = useRef(null);
@@ -1229,8 +1231,78 @@ const Player = () => {
         );
 
         await getCourseProgress();
+
+        // Minta rating hanya saat ditandai selesai (bukan saat dibatalkan).
+        if (!wasCompleted) {
+          try {
+            const { data: pendingData } = await axios.get(
+              backendUrl + "/api/user/pending-ratings",
+              {
+                params: { courseId },
+                headers: { Authorization: `Bearer ${token}` },
+              },
+            );
+
+            const eligible = (pendingData.pending || []).find(
+              (item) => item.lectureId === lectureId,
+            );
+
+            if (eligible) {
+              setRatingTarget({
+                lectureId,
+                title: eligible.title || "",
+                lecture: eligible.lecture || null,
+              });
+            }
+          } catch (error) {
+            console.error("Gagal memeriksa kelayakan rating:", error);
+          }
+        }
       } else {
         toast.error(data.message);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+    }
+  };
+
+  const submitLectureRating = async (rating) => {
+    if (!ratingTarget) return;
+
+    try {
+      const token = await getToken();
+      const chapterId = courseData?.courseContent?.[selectedChapter]?.chapterId;
+
+      // Konteks tampilan OP ini (dihitung saat klik, setelah render selesai)
+      const lectureData = courseData?.courseContent
+        ?.flatMap((chapter) => chapter.chapterContent || [])
+        ?.find((lecture) => lecture.lectureId === ratingTarget.lectureId);
+
+      const shown = {
+        modality: lectureData ? normalizeVark(lectureData.tags) : "",
+        section: "",
+        position: 0,
+      };
+
+      const { data } = await axios.post(
+        backendUrl + "/api/user/rate-lecture",
+        {
+          courseId,
+          chapterId,
+          lectureId: ratingTarget.lectureId,
+          rating,
+          modality: shown?.modality || "",
+          section: shown?.section || "",
+          position: shown?.position || 0,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (data.success) {
+        toast.success("Terima kasih atas penilaiannya");
+        setRatingTarget(null);
+      } else {
+        toast.error(data.message || "Gagal menyimpan rating");
       }
     } catch (error) {
       toast.error(error.response?.data?.message || error.message);
@@ -2036,6 +2108,21 @@ const Player = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      {ratingTarget && (
+        <RatingModal
+          lectureTitle={ratingTarget.title}
+          preview={
+            ratingTarget.lecture ? (
+              <LecturePreview
+                lecture={ratingTarget.lecture}
+                showVarkBadge={false}
+              />
+            ) : null
+          }
+          onSubmit={submitLectureRating}
+          onSkip={() => setRatingTarget(null)}
+        />
+      )}
       <div className="flex flex-col md:flex-row flex-grow">
         {/* ── Sidebar Kiri ── */}
         <aside

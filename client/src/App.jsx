@@ -27,6 +27,7 @@ import KelolaKuis from "./pages/educator/KelolaKuis";
 import ObjekPembelajaran from "./pages/educator/ObjekPembelajaran";
 import InteractionMonitor from "./pages/educator/InteractionMonitor";
 import RecommendationMetrics from "./pages/educator/RecommendationMetrics";
+import PendingRatingPrompt from "./components/student/PendingRatingPrompt";
 
 const RequireOnboarding = ({ children }) => {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -122,6 +123,7 @@ const App = () => {
       <ToastContainer />
 
       {!isEducatorRoute && <Navbar />}
+      {!isEducatorRoute && <PendingRatingPrompt />}
       <Routes>
         <Route
           path="/"
