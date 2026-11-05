@@ -25,11 +25,6 @@ const lectureRatingSchema = new mongoose.Schema(
 
     // Konteks tampilan saat dinilai (untuk analisis)
     modality: { type: String, default: "" }, // V | A | R | K
-    section: {
-      type: String,
-      enum: ["utama", "rekomendasi", "lainnya", ""],
-      default: "",
-    },
     position: { type: Number, default: 0 },
 
     history: { type: [historySchema], default: [] },

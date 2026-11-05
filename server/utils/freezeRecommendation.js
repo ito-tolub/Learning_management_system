@@ -1,12 +1,10 @@
 import Course from "../models/Course.js";
 import User from "../models/User.js";
 import { LectureActivity } from "../models/LectureActivity.js";
-import { RecommendationSnapshot } from "../models/RecommendationSnapshot.js";
+import { RecommendationRanking } from "../models/RecommendationRanking.js";
 import { calculateAdaptiveVark } from "./calculateAdaptiveVark.js";
-import {
-  MAIN_LECTURE_IDS_BY_CHAPTER,
-  getG2Recommendations,
-} from "./calculateFeedbackScore.js";
+import { MAIN_LECTURE_IDS_BY_CHAPTER } from "./calculateFeedbackScore.js";
+import { rankChapterForPraja } from "./peringkatRekomendasi.js";
 
 const TAGS = ["V", "A", "R", "K"];
 const MS_MINGGU = 7 * 24 * 60 * 60 * 1000;
@@ -38,9 +36,10 @@ export const getMeetingStart = (course, meetingNumber) => {
 /**
  * Profil VARK praja MENURUT DATA SEBELUM `cutoff`.
  *
- * Batasnya WAKTU, bukan keanggotaan pertemuan: seluruh akses yang terjadi
- * sebelum jendela pertemuan dimulai ikut membentuk profil, objek pertemuan
- * mana pun. Objek pembelajaran utama tetap dikecualikan karena wajib.
+ * Batasnya WAKTU, bukan keanggotaan pertemuan: setiap OP yang PERTAMA KALI
+ * diakses (createdAt) sebelum jendela pertemuan dimulai ikut membentuk
+ * profil, OP pertemuan mana pun. Objek pembelajaran utama tetap
+ * dikecualikan karena wajib.
  */
 export const buildProfileAtCutoff = async (userId, cutoff) => {
   const user = await User.findById(userId, "varkResult").lean();
@@ -48,7 +47,7 @@ export const buildProfileAtCutoff = async (userId, cutoff) => {
 
   const activities = await LectureActivity.find({
     userId,
-    updatedAt: { $lt: cutoff },
+    createdAt: { $lt: cutoff },
   }).lean();
 
   if (activities.length === 0) {
@@ -97,48 +96,40 @@ export const buildProfileAtCutoff = async (userId, cutoff) => {
 };
 
 /**
- * Mengembalikan daftar lectureId rekomendasi yang BEKU untuk satu praja
- * pada satu pertemuan. Membuatnya bila belum ada dan jendela sudah mulai.
+ * Membentuk (sekali) peringkat lengkap OP untuk satu praja pada satu
+ * pertemuan, lalu menyimpannya di koleksi recommendationrankings.
+ * Peringkat tidak ditampilkan kepada praja dan tidak pernah dihitung ulang.
  *
- * @returns {Promise<string[]|null>} null bila jendela belum dimulai atau
- *          jangkar pertemuan belum diisi
+ * Hasilnya tidak bergantung pada kapan fungsi ini dipanggil: profil VARK
+ * dihitung dari aktivitas SEBELUM batas awal pertemuan (cutoff), sehingga
+ * pembentukan yang tertunda menghasilkan peringkat yang sama.
+ *
+ * @returns {Promise<{created:boolean}|null>} null bila jendela pertemuan
+ *          belum dimulai, jangkar pertemuan belum diisi, atau pengguna
+ *          bukan praja kelas G1/G2
  */
-export const ensureFrozenRecommendation = async ({
+export const ensureRecommendationRanking = async ({
   userId,
   courseId,
   chapterId,
 }) => {
-  const { getMentalReference } = await import("./mentalReference.js");
-  const mentalReference = await getMentalReference();
   const cid = String(courseId);
 
-  const tersimpan = await RecommendationSnapshot.findOne({
+  const ada = await RecommendationRanking.exists({
     userId,
     courseId: cid,
     chapterId,
-  }).lean();
-
-  if (tersimpan) return tersimpan.recommendedLectureIds;
+  });
+  if (ada) return { created: false };
 
   const meetingNumber = meetingNumberFromChapterId(chapterId);
   if (!meetingNumber) return null;
 
   const course = await Course.findById(courseId).lean();
+  if (!course) return null;
+
   const cutoff = getMeetingStart(course, meetingNumber);
-
   if (!cutoff || new Date() < cutoff) return null;
-
-  const chapter = (course.courseContent || []).find(
-    (c) => c.chapterId === chapterId,
-  );
-  if (!chapter) return null;
-
-  const profile = await buildProfileAtCutoff(userId, cutoff);
-
-  const mainIds = MAIN_LECTURE_IDS_BY_CHAPTER[chapterId] || [];
-  const mainLectures = (chapter.chapterContent || []).filter((l) =>
-    mainIds.includes(l.lectureId),
-  );
 
   const praja = await User.findById(userId, "npp").lean();
   const { default: Keprajaan } = await import("../models/Keprajaan.js");
@@ -146,57 +137,69 @@ export const ensureFrozenRecommendation = async ({
     ? await Keprajaan.findOne({ npp: String(praja.npp).trim() }).lean()
     : null;
 
-  // const { getMentalReference } = await import("./mentalReference.js");
-  // const mentalReference = await getMentalReference();
+  if (!["G1", "G2"].includes(kepr?.kelas)) return null;
 
-  const hasil = getG2Recommendations({
-    chapter,
-    mainLectures,
-    userVarkVector: profile.scores,
-    mentalKepribadian: kepr?.mentalKepribadian,
+  const { getMentalReference } = await import("./mentalReference.js");
+  const mentalReference = await getMentalReference();
+
+  const profile = await buildProfileAtCutoff(userId, cutoff);
+
+  const hasil = rankChapterForPraja({
+    course,
+    chapterId,
+    profile,
+    mentalKepribadian: kepr.mentalKepribadian,
     mentalReference,
   });
-
-  const ids = (hasil || []).map((l) => l.lectureId);
+  if (!hasil) return null;
 
   try {
-    await RecommendationSnapshot.create({
+    await RecommendationRanking.create({
       userId,
       courseId: cid,
       chapterId,
       meetingNumber,
-      recommendedLectureIds: ids,
+      npp: String(praja.npp).trim(),
+      nama: kepr.nama,
+      kelas: kepr.kelas,
       varkVector: profile.scores,
       profileSource: profile.source,
+      profileOrigin: "sistem",
+      mentalKepribadian: kepr.mentalKepribadian,
+      mentalReference,
+      contentGranularity: hasil.contentGranularity,
+      cognitiveLevel: hasil.cognitiveLevel,
       cutoff,
+      ranking: hasil.ranking,
     });
   } catch (error) {
-    if (error?.code === 11000) {
-      const lomba = await RecommendationSnapshot.findOne({
-        userId,
-        courseId: cid,
-        chapterId,
-      }).lean();
-      if (lomba) return lomba.recommendedLectureIds;
-    }
-    throw error;
+    // Permintaan paralel sudah membuatnya: tidak apa-apa.
+    if (error?.code !== 11000) throw error;
+    return { created: false };
   }
 
-  return ids;
+  return { created: true };
 };
 
-/** Seluruh snapshot beberapa praja pada satu mata kuliah. */
-export const getFrozenBulk = async (userIds, courseId) => {
-  const snaps = await RecommendationSnapshot.find({
-    userId: { $in: userIds },
-    courseId: String(courseId),
-  }).lean();
+/**
+ * Empat OP teratas (lectureId, urut peringkat) untuk beberapa praja pada
+ * satu mata kuliah: Map(userId -> Map(chapterId -> [lectureId])).
+ */
+export const getTop4Bulk = async (userIds, courseId) => {
+  const docs = await RecommendationRanking.find(
+    { userId: { $in: userIds }, courseId: String(courseId) },
+    "userId chapterId ranking.lectureId ranking.rank ranking.isTop4",
+  ).lean();
 
   const map = new Map();
 
-  for (const s of snaps) {
-    if (!map.has(s.userId)) map.set(s.userId, new Map());
-    map.get(s.userId).set(s.chapterId, s.recommendedLectureIds);
+  for (const d of docs) {
+    if (!map.has(d.userId)) map.set(d.userId, new Map());
+    const top4 = (d.ranking || [])
+      .filter((r) => r.isTop4)
+      .sort((a, b) => a.rank - b.rank)
+      .map((r) => r.lectureId);
+    map.get(d.userId).set(d.chapterId, top4);
   }
 
   return map;

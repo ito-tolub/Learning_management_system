@@ -2,12 +2,12 @@ import Course from "../models/Course.js";
 import User from "../models/User.js";
 import Keprajaan from "../models/Keprajaan.js";
 import { LectureActivity } from "../models/LectureActivity.js";
-import { RecommendationSnapshot } from "../models/RecommendationSnapshot.js";
+import { RecommendationRanking } from "../models/RecommendationRanking.js";
 import { MAIN_LECTURE_IDS_BY_CHAPTER } from "../utils/calculateFeedbackScore.js";
 
 /*
  * Ketepatan rekomendasi berbasis log (Bab V proposal):
- *   R(u,t)   = 4 OP rekomendasi yang dibekukan (RecommendationSnapshot)
+ *   R(u,t)   = 4 OP teratas pada peringkat yang ditetapkan (RecommendationRanking)
  *   Rel(u,t) = OP kandidat yang diselesaikan praja u (durasi >= 50% durasi acuan)
  *              dan akses pertamanya di antara tau_t (cutoff snapshot) dan tau_UTS
  *   Precision@4 = |R ∩ Rel| / 4
@@ -130,16 +130,29 @@ export const getRecommendationMetrics = async (req, res) => {
     const userIds = praja.map((p) => p.userId);
 
     // 3. Snapshot rekomendasi dan log aktivitas
-    const [snapshots, activities] = await Promise.all([
-      RecommendationSnapshot.find({ userId: { $in: userIds } }).lean(),
+    const [rankings, activities] = await Promise.all([
+      RecommendationRanking.find(
+        { userId: { $in: userIds } },
+        "userId courseId chapterId cutoff ranking.lectureId ranking.rank ranking.isTop4",
+      ).lean(),
       LectureActivity.find(
         { userId: { $in: userIds } },
         "userId courseId lectureId totalDuration createdAt",
       ).lean(),
     ]);
 
+    // Bentuk yang sama dengan snapshot lama: { cutoff, recommendedLectureIds }
     const snapByKey = new Map(
-      snapshots.map((s) => [`${s.userId}::${s.courseId}::${s.chapterId}`, s]),
+      rankings.map((r) => [
+        `${r.userId}::${r.courseId}::${r.chapterId}`,
+        {
+          cutoff: r.cutoff,
+          recommendedLectureIds: (r.ranking || [])
+            .filter((item) => item.isTop4)
+            .sort((a, b) => a.rank - b.rank)
+            .map((item) => item.lectureId),
+        },
+      ]),
     );
 
     // userId::courseId::lectureId -> { duration, firstAt }

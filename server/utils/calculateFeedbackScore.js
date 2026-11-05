@@ -68,7 +68,7 @@ const cosineSimilarity = (userVector, objectVector) => {
   return dot / (userNorm * objectNorm);
 };
 
-const getInstructionalProfile = (mentalKepribadian, mentalReference) => {
+export const getInstructionalProfile = (mentalKepribadian, mentalReference) => {
   const score = Number(mentalKepribadian);
 
   if (!Number.isFinite(score) || !Number.isFinite(mentalReference)) {
@@ -248,7 +248,12 @@ const getG2RecommendationCandidates = (chapter, mainLectures) => {
   );
 };
 
-export const getG2Recommendations = ({
+/**
+ * Peringkat LENGKAP seluruh OP kandidat (tanpa pemotongan top-K).
+ * Setiap elemen memuat rank, _varkSimilarity, _instructionalCompatibility,
+ * _hybridScore, dan _hybridPercentage.
+ */
+export const getG2FullRanking = ({
   chapter,
   mainLectures,
   userVarkVector,
@@ -294,12 +299,15 @@ export const getG2Recommendations = ({
 
       return a._sourceIndex - b._sourceIndex;
     })
-    .slice(0, RECOMMENDATION_LIMIT)
     .map((lecture, index) => ({
       ...lecture,
       rank: index + 1,
     }));
 };
+
+/** Empat OP teratas dari peringkat lengkap. */
+export const getG2Recommendations = (args) =>
+  getG2FullRanking(args).slice(0, RECOMMENDATION_LIMIT);
 
 const activityMapFrom = (activities = []) => {
   const activityMap = new Map();

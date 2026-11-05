@@ -8,9 +8,34 @@ import Pegawai from "../models/pegawai.js";
 import { clerkClient } from "@clerk/express";
 import { getUserVarkVector } from "../utils/getUserVarkVector.js";
 import { Attendance } from "../models/Attendance.js";
-import { ensureFrozenRecommendation } from "../utils/freezeRecommendation.js";
+import { ensureRecommendationRanking } from "../utils/freezeRecommendation.js";
 import { getMentalReference } from "../utils/mentalReference.js";
 import { LectureRating } from "../models/LectureRating.js";
+
+// Materi utama tidak dinilai; rating hanya untuk OP pendukung.
+// Daftar ini sama dengan MAIN_LECTURE_IDS_BY_CHAPTER di Player.jsx.
+const MAIN_LECTURE_IDS_BY_CHAPTER = {
+  pertemuan1: ["op1.1", "op1.2"],
+  pertemuan2: ["op2.1", "op2.2"],
+  pertemuan3: ["op3.29", "op3.30", "op3.31"],
+  pertemuan4: ["op4.25", "op4.24"],
+  pertemuan5: ["op5.25", "op5.24"],
+  pertemuan6: ["op6.25", "op6.24"],
+  pertemuan7: ["op7.22", "op7.21"],
+};
+
+const MAIN_LECTURE_ID_SET = new Set(
+  Object.values(MAIN_LECTURE_IDS_BY_CHAPTER).flat().map(String),
+);
+
+// Daftar tetap + mainLectureIds tiap chapter di database (bila ada).
+const getCourseMainIds = (course) => {
+  const ids = new Set(MAIN_LECTURE_ID_SET);
+  (course?.courseContent || []).forEach((chapter) => {
+    (chapter?.mainLectureIds || []).forEach((id) => ids.add(String(id)));
+  });
+  return ids;
+};
 
 export const getMyMentalReference = async (req, res) => {
   try {
@@ -539,20 +564,29 @@ export const getMyAdaptiveVark = async (req, res) => {
   }
 };
 
-export const getMyFrozenRecommendation = async (req, res) => {
+/**
+ * Memastikan peringkat lengkap OP untuk praja ini pada pertemuan tersebut
+ * sudah terbentuk. Peringkat tidak dikirim ke klien: tidak ada rekomendasi
+ * yang ditampilkan kepada praja di kelas mana pun.
+ */
+export const ensureMyRanking = async (req, res) => {
   try {
     const userId = req.auth.userId;
-    const { courseId, chapterId } = req.query;
+    const { courseId, chapterId } = req.body || {};
 
-    const ids = await ensureFrozenRecommendation({
+    if (!courseId || !chapterId) {
+      return res.json({ success: false, message: "Data tidak lengkap" });
+    }
+
+    const hasil = await ensureRecommendationRanking({
       userId,
       courseId,
       chapterId,
     });
 
-    return res.json({ success: true, recommendedLectureIds: ids || [] });
+    return res.json({ success: true, created: Boolean(hasil?.created) });
   } catch (error) {
-    console.error("getMyFrozenRecommendation error:", error);
+    console.error("ensureMyRanking error:", error);
     return res.json({ success: false, message: error.message });
   }
 };
@@ -560,7 +594,7 @@ export const getMyFrozenRecommendation = async (req, res) => {
 export const rateLecture = async (req, res) => {
   try {
     const userId = req.auth.userId;
-    const { courseId, chapterId, lectureId, rating, modality, section, position } =
+    const { courseId, chapterId, lectureId, rating, modality, position } =
       req.body || {};
 
     const value = Number(rating);
@@ -573,6 +607,11 @@ export const rateLecture = async (req, res) => {
       return res.json({ success: false, message: "Rating harus 1 sampai 5" });
     }
 
+    const ratedCourse = await Course.findById(courseId, "courseContent").lean();
+    if (getCourseMainIds(ratedCourse).has(String(lectureId))) {
+      return res.json({ success: false, message: "Materi utama tidak perlu dinilai" });
+    }
+
     const now = new Date();
 
     await LectureRating.updateOne(
@@ -583,9 +622,6 @@ export const rateLecture = async (req, res) => {
           rating: value,
           ratedAt: now,
           modality: String(modality || "").slice(0, 1),
-          section: ["utama", "rekomendasi", "lainnya"].includes(section)
-            ? section
-            : "",
           position: Number(position) || 0,
         },
         $push: { history: { rating: value, at: now } },
@@ -618,6 +654,7 @@ export const getPendingRatings = async (req, res) => {
 
     progresses.forEach((progress) => {
       (progress.lectureCompleted || []).forEach((lectureId) => {
+        if (MAIN_LECTURE_ID_SET.has(String(lectureId))) return; // materi utama
         completed.push({ courseId: String(progress.courseId), lectureId });
       });
     });
@@ -662,7 +699,9 @@ export const getPendingRatings = async (req, res) => {
     const courses = await Course.find({ _id: { $in: courseIds } }).lean();
 
     const lectureInfo = new Map();
+    const mainKeys = new Set();
     courses.forEach((course) => {
+      getCourseMainIds(course).forEach((id) => mainKeys.add(`${course._id}|${id}`));
       (course.courseContent || []).forEach((chapter, chapterIndex) => {
         (chapter.chapterContent || []).forEach((lecture, lectureIndex) => {
           const key = `${course._id}|${lecture.lectureId}`;
@@ -679,6 +718,7 @@ export const getPendingRatings = async (req, res) => {
 
     const pending = candidates
       .map((item) => {
+        if (mainKeys.has(keyOf(item))) return null; // materi utama tidak dirating
         const info = lectureInfo.get(keyOf(item));
         if (!info) return null;
         return {

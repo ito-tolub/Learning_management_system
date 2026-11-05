@@ -18,11 +18,6 @@ import {
 } from "../../hooks/useIdleDetector";
 import RatingModal from "../../components/student/RatingModal";
 
-const HYBRID_WEIGHT = {
-  vark: 0.7,
-  instructional: 0.3,
-};
-
 const MAIN_LECTURE_IDS_BY_CHAPTER = {
   pertemuan1: ["op1.1", "op1.2"],
   pertemuan2: ["op2.1", "op2.2"],
@@ -33,8 +28,6 @@ const MAIN_LECTURE_IDS_BY_CHAPTER = {
   pertemuan7: ["op7.22", "op7.21"],
 };
 
-const RECOMMENDATION_LIMIT = 4;
-
 /*
  * Pencatatan durasi dijeda bila tidak ada klik, gulir, ketikan, atau
  * gerakan kursor selama IDLE_LIMIT_MS. Hanya berlaku untuk modalitas pada IDLE_MODALITIES;
@@ -42,31 +35,6 @@ const RECOMMENDATION_LIMIT = 4;
  */
 const IDLE_LIMIT_MS = 60 * 1000;
 const IDLE_MODALITIES = ["V", "R", "K"];
-
-// const MENTAL_REFERENCE_VALUE = 84.87;
-const cosineSimilarity = (userVector, objectVector) => {
-  if (!userVector || !objectVector) return 0;
-
-  const keys = ["V", "A", "R", "K"];
-
-  const user = keys.map((key) => Number(userVector[key] || 0));
-  const object = keys.map((key) => Number(objectVector[key] || 0));
-
-  const dot = user.reduce(
-    (sum, value, index) => sum + value * object[index],
-    0,
-  );
-
-  const userNorm = Math.sqrt(user.reduce((sum, value) => sum + value ** 2, 0));
-
-  const objectNorm = Math.sqrt(
-    object.reduce((sum, value) => sum + value ** 2, 0),
-  );
-
-  if (userNorm === 0 || objectNorm === 0) return 0;
-
-  return dot / (userNorm * objectNorm);
-};
 
 // Normalisasi tipeVARK — handle "V"/"Visual", "A"/"Auditory", "R"/"Reading"/"Read/Write", "K"/"Kinesthetic"/"Kinestethic"
 const normalizeVark = (val) => {
@@ -80,37 +48,6 @@ const normalizeVark = (val) => {
 };
 
 const varkEmoji = { V: "🎬", A: "🎧", R: "📄", K: "🛠️" };
-
-const varkColor = {
-  V: {
-    bg: "bg-purple-50",
-    border: "border-purple-200",
-    accent: "bg-purple-600",
-    text: "text-purple-700",
-    badge: "bg-purple-600",
-  },
-  A: {
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    accent: "bg-amber-500",
-    text: "text-amber-700",
-    badge: "bg-amber-500",
-  },
-  R: {
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    accent: "bg-emerald-600",
-    text: "text-emerald-700",
-    badge: "bg-emerald-600",
-  },
-  K: {
-    bg: "bg-rose-50",
-    border: "border-rose-200",
-    accent: "bg-rose-500",
-    text: "text-rose-700",
-    badge: "bg-rose-500",
-  },
-};
 
 const getYouTubeId = (url) => {
   try {
@@ -622,16 +559,10 @@ const LectureCard = ({
   onReview,
   isActive,
   isCompleted,
-  recommendationEnabled,
-  isRecommended = false,
-  rank = null,
 }) => {
   const modality = normalizeVark(lecture?.tags);
   const lectureType = getLectureType(lecture);
   const headerIcon = lectureType.icon;
-
-  const hybridScore = Number(lecture?._hybridPercentage);
-  const hasHybridScore = recommendationEnabled && Number.isFinite(hybridScore);
 
   return (
     <article
@@ -639,9 +570,7 @@ const LectureCard = ({
       className={`group cursor-pointer rounded-2xl border p-3 transition-all duration-200 ${
         isActive
           ? "border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-100"
-          : isRecommended
-            ? "border-blue-200 bg-slate-100 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
-            : "border-gray-200 bg-slate-100 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
+          : "border-gray-200 bg-slate-100 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
       }`}
     >
       <div className="flex items-start gap-2 px-1 pb-3">
@@ -659,14 +588,9 @@ const LectureCard = ({
           <p className="mt-0.5 text-xs text-gray-500">Objek pembelajaran</p>
         </div>
 
-        {isRecommended && (
-          <span className="rounded-full bg-blue-600 px-2 py-1 text-[10px] font-bold text-white">
-            #{rank}
-          </span>
-        )}
       </div>
 
-      <LecturePreview lecture={lecture} showVarkBadge={recommendationEnabled} />
+      <LecturePreview lecture={lecture} showVarkBadge={false} />
 
       <div className="flex items-center justify-between gap-3 px-1 pt-3">
         <button
@@ -681,12 +605,6 @@ const LectureCard = ({
         </button>
 
         <div className="flex min-w-0 items-center gap-2">
-          {/* {hasHybridScore && (
-            <span className="truncate rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
-              {hybridScore.toFixed(2)}%
-            </span>
-          )} */}
-
           {isCompleted && (
             <span className="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-semibold text-green-700">
               ✓ Selesai
@@ -712,8 +630,30 @@ const UntrackedFrame = ({ onMount, children }) => {
   return children;
 };
 
-const HtmlPlayer = ({ url, title, onActivity }) => {
+/*
+ * Sinyal selesai dari objek HTML (Kinesthetic). Objek mengirim sinyal ketika
+ * praja sudah mengerjakan soal sampai akhir, dengan salah satu cara:
+ *   window.parent.postMessage({ type: "OP_SELESAI" }, "*");
+ *   window.lmsSelesai?.();
+ */
+const OP_COMPLETE_MESSAGE = "OP_SELESAI";
+
+const HtmlPlayer = ({ url, title, onActivity, onComplete }) => {
   const iframeRef = React.useRef(null);
+  const onCompleteRef = React.useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
+  // Terima postMessage hanya dari iframe objek ini.
+  React.useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const type = typeof event.data === "string" ? event.data : event.data?.type;
+      if (type === OP_COMPLETE_MESSAGE) onCompleteRef.current?.();
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
   const resizeObserverRef = React.useRef(null);
   const heightRef = React.useRef(600);
   const growCountRef = React.useRef(0);
@@ -801,6 +741,15 @@ const HtmlPlayer = ({ url, title, onActivity }) => {
             console.error("Gagal memantau aktivitas objek HTML:", error);
           }
 
+          // Alternatif postMessage: objek cukup memanggil window.lmsSelesai().
+          try {
+            if (doc?.defaultView) {
+              doc.defaultView.lmsSelesai = () => onCompleteRef.current?.();
+            }
+          } catch (error) {
+            console.error("Gagal memasang sinyal selesai objek HTML:", error);
+          }
+
           // Sesuaikan tinggi sekarang, lalu ikuti perubahan isi (gambar yang
           // selesai dimuat, bagian yang dibuka, dan sebagainya).
           try {
@@ -821,33 +770,6 @@ const HtmlPlayer = ({ url, title, onActivity }) => {
   );
 };
 
-const getInstructionalProfile = (mentalKepribadian, mentalReference) => {
-  const score = Number(mentalKepribadian);
-  const reference = Number(mentalReference);
-
-  if (!Number.isFinite(score) || !Number.isFinite(reference)) return null;
-
-  return {
-    contentGranularity: score >= reference ? "utuh" : "tersegmentasi",
-
-    cognitiveLevel: score >= reference ? "C4-C6" : "C1-C3",
-  };
-};
-
-const getInstructionalCompatibility = (lecture, profile) => {
-  if (!lecture || !profile) return 0;
-  const modality = normalizeVark(lecture.tags);
-  // Kinestetik menggunakan cognitiveLevel
-  if (modality === "K") {
-    return lecture.cognitiveLevel === profile.cognitiveLevel ? 1 : 0;
-  }
-
-  // Visual, Auditory, Read/Write menggunakan micro/macro
-  if (["V", "A", "R"].includes(modality)) {
-    return lecture.contentGranularity === profile.contentGranularity ? 1 : 0;
-  }
-  return 0;
-};
 // Hash string -> angka (untuk benih acak).
 const hashString = (text) => {
   let h = 2166136261;
@@ -950,7 +872,6 @@ const arrangeByModalityRows = (lectures, seedText) => {
 };
 
 const Player = () => {
-  const [adaptiveVarkVector, setAdaptiveVarkVector] = useState(null);
   const [, setActivityData] = useState([]);
   const [, setElapsedSeconds] = useState(0);
   const {
@@ -961,12 +882,6 @@ const Player = () => {
     userData,
     fetUserEnrolledCourses,
   } = useContext(AppContext);
-
-  const userClass = String(userData?.kelas || "")
-    .trim()
-    .toUpperCase();
-
-  const recommendationEnabled = userClass === "G2";
 
   const { courseId } = useParams();
   const navigate = useNavigate();
@@ -1005,24 +920,6 @@ const Player = () => {
     setPlayerData(lecture);
     setPlayerScrollRequest((previous) => previous + 1);
   };
-  const [mentalReference, setMentalReference] = useState(null);
-
-  useEffect(() => {
-    const ambil = async () => {
-      try {
-        const token = await getToken();
-        const { data } = await axios.get(
-          backendUrl + "/api/user/mental-reference",
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        if (data.success) setMentalReference(data.mentalReference);
-      } catch (error) {
-        console.error("Gagal mengambil ambang mental kepribadian:", error);
-      }
-    };
-    ambil();
-  }, [backendUrl]);
-
   useEffect(() => {
     if (!playerData || !playerSectionRef.current) return undefined;
 
@@ -1040,26 +937,6 @@ const Player = () => {
     return () => window.clearTimeout(timeoutId);
   }, [playerData, playerScrollRequest]);
 
-  useEffect(() => {
-    const fetchAdaptiveVark = async () => {
-      try {
-        const token = await getToken();
-        const { data } = await axios.get(
-          backendUrl + "/api/user/adaptive-vark",
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        if (data.success) {
-          setAdaptiveVarkVector(data.adaptiveScores);
-        }
-      } catch (error) {
-        console.error("Gagal memuat profil VARK adaptif:", error);
-      }
-    };
-    fetchAdaptiveVark();
-  }, []);
-
   const scrollMainLectures = (direction) => {
     const slider = mainLectureSliderRef.current;
 
@@ -1073,20 +950,6 @@ const Player = () => {
     });
   };
 
-  // Profil VARK pengguna digunakan sebagai vektor, bukan dominant tunggal
-  const userVarkVector =
-    adaptiveVarkVector || userData?.varkResult?.scores || null;
-  const userInstructionalProfile = getInstructionalProfile(
-    userData?.mentalKepribadian,
-    mentalReference,
-  );
-  const dominantSet = userVarkVector
-    ? Object.entries(userVarkVector)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 2)
-        .map(([key]) => key)
-    : [];
-
   const getCourseData = () => {
     enrolledCourses.forEach((course) => {
       if (course._id === courseId) {
@@ -1095,42 +958,29 @@ const Player = () => {
     });
   };
 
-  // Daftar rekomendasi BEKU dari server (hanya kelas G2).
-  const [frozenIds, setFrozenIds] = useState([]);
-
+  // Memastikan peringkat OP untuk praja ini terbentuk di server (semua kelas).
+  // Peringkat TIDAK dikirim ke klien dan tidak ditampilkan; hanya dicatat
+  // untuk evaluasi offline.
   useEffect(() => {
     const chapterId = courseData?.courseContent?.[selectedChapter]?.chapterId;
 
-    if (!recommendationEnabled || !courseId || !chapterId) {
-      setFrozenIds([]);
-      return;
-    }
+    if (!courseId || !chapterId) return;
 
-    const ambil = async () => {
+    const pastikan = async () => {
       try {
         const token = await getToken();
-        const { data } = await axios.get(
-          backendUrl + "/api/user/frozen-recommendation",
-          {
-            params: { courseId, chapterId },
-            headers: { Authorization: `Bearer ${token}` },
-          },
+        await axios.post(
+          backendUrl + "/api/user/ensure-ranking",
+          { courseId, chapterId },
+          { headers: { Authorization: `Bearer ${token}` } },
         );
-        setFrozenIds(data.success ? data.recommendedLectureIds || [] : []);
       } catch (error) {
-        console.error("Gagal mengambil rekomendasi beku:", error);
-        setFrozenIds([]);
+        console.error("Gagal memastikan peringkat pertemuan:", error);
       }
     };
 
-    ambil();
-  }, [
-    recommendationEnabled,
-    courseId,
-    courseData,
-    selectedChapter,
-    backendUrl,
-  ]);
+    pastikan();
+  }, [courseId, courseData, selectedChapter, backendUrl]);
 
   useEffect(() => {
     if (enrolledCourses.length > 0) {
@@ -1176,10 +1026,31 @@ const Player = () => {
     return Math.max(0, Math.floor(totalMs / 1000));
   };
 
-  const toggleLectureCompleted = async (lectureId) => {
+  // Objek Kinesthetic diselesaikan otomatis saat soal dikerjakan sampai akhir.
+  const completingRef = useRef(new Set());
+
+  const handleKinestheticComplete = async (lectureId) => {
+    if (!lectureId || isCompleted(lectureId)) return;
+    if (completingRef.current.has(lectureId)) return;
+
+    completingRef.current.add(lectureId);
+    try {
+      await toggleLectureCompleted(lectureId, { onlyComplete: true });
+    } finally {
+      completingRef.current.delete(lectureId);
+    }
+  };
+
+  const toggleLectureCompleted = async (
+    lectureId,
+    { onlyComplete = false } = {},
+  ) => {
     try {
       const token = await getToken();
       const wasCompleted = isCompleted(lectureId);
+
+      // Endpoint bersifat toggle: jangan sampai membatalkan status selesai.
+      if (onlyComplete && wasCompleted) return;
 
       /*
        * Penandaan selesai tidak dibatasi durasi baca. Durasi akses tetap
@@ -1278,10 +1149,16 @@ const Player = () => {
         ?.flatMap((chapter) => chapter.chapterContent || [])
         ?.find((lecture) => lecture.lectureId === ratingTarget.lectureId);
 
+      // Posisi tampil OP pendukung pada halaman pertemuan (urutan acak per
+      // praja): urutan pada grid, kiri ke kanan lalu atas ke bawah, mulai
+      // dari 1. Materi utama tidak berada di grid sehingga bernilai 0.
+      const supportPos = displayedLectures.findIndex(
+        (lecture) => lecture.lectureId === ratingTarget.lectureId,
+      );
+
       const shown = {
         modality: lectureData ? normalizeVark(lectureData.tags) : "",
-        section: "",
-        position: 0,
+        position: supportPos >= 0 ? supportPos + 1 : 0,
       };
 
       const { data } = await axios.post(
@@ -1292,7 +1169,6 @@ const Player = () => {
           lectureId: ratingTarget.lectureId,
           rating,
           modality: shown?.modality || "",
-          section: shown?.section || "",
           position: shown?.position || 0,
         },
         { headers: { Authorization: `Bearer ${token}` } },
@@ -1869,6 +1745,11 @@ const Player = () => {
           url={url}
           title={playerData.lectureTitle}
           onActivity={markActivity}
+          onComplete={
+            normalizeVark(playerData.tags) === "K"
+              ? () => handleKinestheticComplete(playerData.lectureId)
+              : undefined
+          }
         />
       );
     }
@@ -1911,33 +1792,7 @@ const Player = () => {
     (assignment) =>
       Number(assignment.pertemuan) === Number(currentChapter?.chapterOrder),
   );
-  // const dominantLabelText = dominantSet.map((c) => varkLabel[c]).join(" / "); // "Visual / Auditory / Read/Write"
   const lectures = currentChapter?.chapterContent || [];
-
-  const scoreLecture = (lecture) => {
-    const varkSimilarity = cosineSimilarity(userVarkVector, lecture.varkvektor);
-
-    const instructionalCompatibility = getInstructionalCompatibility(
-      lecture,
-      userInstructionalProfile,
-    );
-
-    const hybridScore =
-      HYBRID_WEIGHT.vark * varkSimilarity +
-      HYBRID_WEIGHT.instructional * instructionalCompatibility;
-
-    return {
-      varkSimilarity,
-
-      instructionalCompatibility,
-
-      hybridScore,
-
-      varkPercentage: Number((varkSimilarity * 100).toFixed(2)),
-
-      hybridPercentage: Number((hybridScore * 100).toFixed(2)),
-    };
-  };
 
   const lecturesWithIndex = lectures.map((lecture, index) => ({
     ...lecture,
@@ -1982,11 +1837,6 @@ const Player = () => {
     mainLectures.map((lecture) => lecture._sourceIndex),
   );
 
-  // Materi utama dosen tidak boleh masuk perhitungan rekomendasi.
-  const recommendationCandidates = lecturesWithIndex.filter(
-    (lecture) => !mainLectureIndexes.has(lecture._sourceIndex),
-  );
-
   // Urutan netral berdasarkan lectureOrder.
   // Jika lectureOrder sama, gunakan urutan asli dalam array.
   const orderedLectures = [...lecturesWithIndex].sort((a, b) => {
@@ -2000,86 +1850,11 @@ const Player = () => {
     return a._sourceIndex - b._sourceIndex;
   });
 
-  // Scoring hanya dilakukan untuk G2 dan hanya jika profil VARK tersedia.
-  const scoredLectures =
-    recommendationEnabled && userVarkVector
-      ? recommendationCandidates
-          .filter((lecture) => lecture.varkvektor)
-          .map((lecture) => {
-            const result = scoreLecture(lecture);
-
-            return {
-              ...lecture,
-              _varkSimilarity: result.varkSimilarity,
-              _instructionalCompatibility: result.instructionalCompatibility,
-              _hybridScore: result.hybridScore,
-              _hybridPercentage: result.hybridPercentage,
-            };
-          })
-          .sort((a, b) => {
-            if (b._hybridScore !== a._hybridScore) {
-              return b._hybridScore - a._hybridScore;
-            }
-
-            return a._sourceIndex - b._sourceIndex;
-          })
-      : [];
-
-  if (recommendationEnabled) {
-    console.log(
-      "Hybrid recommendation ranking:",
-      scoredLectures.map((lecture) => ({
-        title: lecture.lectureTitle,
-        varkvektor: lecture.varkvektor,
-        varkSimilarity: lecture._varkSimilarity,
-        instructionalCompatibility: lecture._instructionalCompatibility,
-        hybridScore: lecture._hybridScore,
-        hybridPercentage: lecture._hybridPercentage,
-      })),
-    );
-  }
-
-  // Daftar BEKU dari server. Urutan mengikuti peringkat saat dibekukan.
-  const rekomendasiAkhir =
-    recommendationEnabled && frozenIds.length > 0
-      ? frozenIds
-          .map((id) =>
-            recommendationCandidates.find(
-              (lecture) => lecture.lectureId === id,
-            ),
-          )
-          .filter(Boolean)
-          .map((lecture, index) => ({
-            ...lecture,
-            rank: index + 1,
-          }))
-      : [];
-
-  // Gunakan indeks sumber, bukan lectureId, karena data masih mungkin
-  // mempunyai lectureId yang sama.
-  const recommendedIndexes = new Set(
-    rekomendasiAkhir.map((lecture) => lecture._sourceIndex),
+  // Materi utama selalu dikeluarkan dari daftar pendukung. Tidak ada
+  // rekomendasi yang ditampilkan: G1 dan G2 melihat daftar yang sama.
+  const lecturesLainUrut = orderedLectures.filter(
+    (lecture) => !mainLectureIndexes.has(lecture._sourceIndex),
   );
-
-  // Gabungkan kembali metadata skor agar kartu G2 dapat menampilkan hybrid score.
-  const scoredLectureByIndex = new Map(
-    scoredLectures.map((lecture) => [lecture._sourceIndex, lecture]),
-  );
-
-  const orderedLecturesWithScore = orderedLectures.map(
-    (lecture) => scoredLectureByIndex.get(lecture._sourceIndex) || lecture,
-  );
-
-  const lecturesLainUrut = orderedLecturesWithScore.filter((lecture) => {
-    const isMainLecture = mainLectureIndexes.has(lecture._sourceIndex);
-    const isRecommendedLecture = recommendedIndexes.has(lecture._sourceIndex);
-
-    // Materi utama selalu dikeluarkan dari daftar lainnya.
-    if (isMainLecture) return false;
-    // Untuk G2, rekomendasi juga dikeluarkan dari daftar lainnya.
-    if (recommendationEnabled && isRecommendedLecture) return false;
-    return true;
-  });
 
   // Susunan baris 4 modalitas; urutan stabil per praja per pertemuan.
   const lecturesLain = arrangeByModalityRows(
@@ -2087,8 +1862,6 @@ const Player = () => {
     `${userData?._id || userData?.npp || "anon"}|${currentChapter?.chapterId || ""}`,
   );
 
-  const colors =
-    varkColor[normalizeVark(rekomendasiAkhir[0]?.tags)] || varkColor["V"];
   const isCompleted = (id) => progressData?.lectureCompleted?.includes(id);
 
   const displayedLectures = lecturesLain;
@@ -2306,6 +2079,17 @@ const Player = () => {
                 </div>
 
                 <div className="flex flex-col items-end gap-1.5">
+                  {normalizeVark(playerData.tags) === "K" ? (
+                    isCompleted(playerData.lectureId) ? (
+                      <span className="px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-700 border border-green-200 select-none">
+                        ✓ Selesai
+                      </span>
+                    ) : (
+                      <span className="px-4 py-2 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200 select-none">
+                        Kerjakan soal sampai akhir untuk menyelesaikan
+                      </span>
+                    )
+                  ) : (
                   <button
                     onClick={() => toggleLectureCompleted(playerData.lectureId)}
                     title={
@@ -2331,6 +2115,7 @@ const Player = () => {
                       "Tandai Selesai"
                     )}
                   </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2392,7 +2177,6 @@ const Player = () => {
                       onReview={handleOpenLecture}
                       isActive={isSameLecture(lecture)}
                       isCompleted={isCompleted(lecture.lectureId)}
-                      recommendationEnabled={false}
                     />
                   </div>
                 ))}
@@ -2405,24 +2189,10 @@ const Player = () => {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-gray-700 text-sm">
-                  {recommendationEnabled
-                    ? "Objek Pembelajaran Pendukung"
-                    : "Semua Objek Pembelajaran"}
+                  Objek Pembelajaran Pendukung
                 </h3>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {rekomendasiAkhir.map((lecture) => (
-                  <LectureCard
-                    key={`recommended-${lecture._sourceIndex}`}
-                    lecture={lecture}
-                    onReview={handleOpenLecture}
-                    isActive={isSameLecture(lecture)}
-                    isCompleted={isCompleted(lecture.lectureId)}
-                    recommendationEnabled={recommendationEnabled}
-                    // isRecommended
-                    // rank={lecture.rank}
-                  />
-                ))}
                 {displayedLectures.map((lecture) => (
                   <LectureCard
                     key={`lecture-${lecture._sourceIndex}`}
@@ -2430,7 +2200,6 @@ const Player = () => {
                     onReview={handleOpenLecture}
                     isActive={isSameLecture(lecture)}
                     isCompleted={isCompleted(lecture.lectureId)}
-                    recommendationEnabled={recommendationEnabled}
                   />
                 ))}
               </div>

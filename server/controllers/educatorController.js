@@ -23,8 +23,7 @@ import {
   PRESENT_STATUSES,
 } from "../models/Attendance.js";
 import { getUserVarkVectorBulk } from "../utils/getUserVarkVector.js";
-import { RecommendationSnapshot } from "../models/RecommendationSnapshot.js";
-import { getFrozenBulk } from "../utils/freezeRecommendation.js";
+import { RecommendationRanking } from "../models/RecommendationRanking.js";
 import { getMentalReference } from "../utils/mentalReference.js";
 
 export const verifyNipAndBecomeEducator = async (req, res) => {
@@ -742,17 +741,24 @@ export const getStudentEngagementScore = async (req, res) => {
 
     const varkByUserId = await getUserVarkVectorBulk(users.map((u) => u._id));
 
-    const snapshots = await RecommendationSnapshot.find({}).lean();
+    const rankings = await RecommendationRanking.find(
+      {},
+      "userId courseId chapterId ranking.lectureId ranking.rank ranking.isTop4",
+    ).lean();
 
-    // userId::courseId -> Map(chapterId -> [lectureId])
+    // userId::courseId -> Map(chapterId -> [lectureId]) (4 teratas)
     const frozenByUserCourse = new Map();
 
-    for (const s of snapshots) {
-      const kunci = `${s.userId}::${s.courseId}`;
+    for (const r of rankings) {
+      const kunci = `${r.userId}::${r.courseId}`;
       if (!frozenByUserCourse.has(kunci)) {
         frozenByUserCourse.set(kunci, new Map());
       }
-      frozenByUserCourse.get(kunci).set(s.chapterId, s.recommendedLectureIds);
+      const top4 = (r.ranking || [])
+        .filter((item) => item.isTop4)
+        .sort((a, b) => a.rank - b.rank)
+        .map((item) => item.lectureId);
+      frozenByUserCourse.get(kunci).set(r.chapterId, top4);
     }
     const mentalReference = await getMentalReference();
 
